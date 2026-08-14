@@ -61,20 +61,20 @@ _G.EmergencyCleanAll()
 task.wait(0.1)
 _G.RainActive = true
 -- ============================================================================
--- FATALITY EXTERNAL — PART 2: HARDWARE SCALE RAIN ENGINE
+-- FATALITY EXTERNAL — PART 2: HARDWARE SCALE RAIN ENGINE (GLOBAL APP)
 -- ============================================================================
-local BackgroundGui = Instance.new("ScreenGui")
-BackgroundGui.Name = "FatalityBackgroundUI"
-BackgroundGui.ResetOnSpawn = false
-BackgroundGui.IgnoreGuiInset = true
-BackgroundGui.Parent = _G.ParentFolder
+_G.FatalityBgGui = Instance.new("ScreenGui")
+_G.FatalityBgGui.Name = "FatalityBackgroundUI"
+_G.FatalityBgGui.ResetOnSpawn = false
+_G.FatalityBgGui.IgnoreGuiInset = true
+_G.FatalityBgGui.Parent = _G.ParentFolder
 
 _G.FatalityDimObj = Instance.new("Frame")
 _G.FatalityDimObj.Size = UDim2.new(1, 0, 1, 0)
 _G.FatalityDimObj.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 _G.FatalityDimObj.BackgroundTransparency = 1 
 _G.FatalityDimObj.BorderSizePixel = 0
-_G.FatalityDimObj.Parent = BackgroundGui
+_G.FatalityDimObj.Parent = _G.FatalityBgGui
 
 game:GetService("TweenService"):Create(_G.FatalityDimObj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.6}):Play()
 
@@ -82,7 +82,7 @@ local RainContainer = Instance.new("Frame")
 RainContainer.Name = "RainContainer"
 RainContainer.Size = UDim2.new(1, 0, 1, 0)
 RainContainer.BackgroundTransparency = 1
-RainContainer.Parent = BackgroundGui
+RainContainer.Parent = _G.FatalityBgGui
 
 local RAIN_DROP_COUNT = 380 
 local allDrops = {}
@@ -413,18 +413,11 @@ _G.ShutdownAndLaunchUI = function(callback)
     if _G.StopFloat then _G.StopFloat() end
     if _G.TimeConnection then _G.TimeConnection:Disconnect() end
     
-    -- ОЧИСТКА ЭФФЕКТОВ: выключаем скрипт дождя и удаляем его интерфейс вместе с размытием
+    -- ГАРАНТИРОВАННАЯ ОЧИСТКА: гасим движок и сносим интерфейс по прямой ссылке
     _G.RainActive = false
     if _G.RainConnection then pcall(function() _G.RainConnection:Disconnect() end) end
-    
-    local folders = {game:GetService("CoreGui"), (gethui and gethui())}
-    for _, folder in ipairs(folders) do
-        if folder and folder:FindFirstChild("FatalityBackgroundUI") then 
-            pcall(function() folder.FatalityBackgroundUI:Destroy() end) 
-        end
-    end
     if _G.FatalityBlurObj then pcall(function() _G.FatalityBlurObj:Destroy() end) end
-    -- КОНЕЦ ОЧИСТКИ ЭФФЕКТОВ
+    if _G.FatalityBgGui then pcall(function() _G.FatalityBgGui:Destroy() end) end
     
     local mainUI = _G.MainFrame.Parent
     local fadeTween = TweenService:Create(_G.MainFrame, TweenInfo.new(0.3), {Position = _G.MainFrame.Position + UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1})
