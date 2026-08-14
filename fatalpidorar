@@ -413,6 +413,19 @@ _G.ShutdownAndLaunchUI = function(callback)
     if _G.StopFloat then _G.StopFloat() end
     if _G.TimeConnection then _G.TimeConnection:Disconnect() end
     
+    -- ОЧИСТКА ЭФФЕКТОВ: выключаем скрипт дождя и удаляем его интерфейс вместе с размытием
+    _G.RainActive = false
+    if _G.RainConnection then pcall(function() _G.RainConnection:Disconnect() end) end
+    
+    local folders = {game:GetService("CoreGui"), (gethui and gethui())}
+    for _, folder in ipairs(folders) do
+        if folder and folder:FindFirstChild("FatalityBackgroundUI") then 
+            pcall(function() folder.FatalityBackgroundUI:Destroy() end) 
+        end
+    end
+    if _G.FatalityBlurObj then pcall(function() _G.FatalityBlurObj:Destroy() end) end
+    -- КОНЕЦ ОЧИСТКИ ЭФФЕКТОВ
+    
     local mainUI = _G.MainFrame.Parent
     local fadeTween = TweenService:Create(_G.MainFrame, TweenInfo.new(0.3), {Position = _G.MainFrame.Position + UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1})
     
@@ -447,7 +460,6 @@ local function LaunchHubCode()
 end
 
 local function runVerification()
-    -- ТВОЯ ФИЧА: Фильтр карт (кик отовсюду кроме Prison Life)
     if game.PlaceId ~= 155615604 then
         local currentPlaceName = "Unknown Game"
         pcall(function()
