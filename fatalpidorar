@@ -1,0 +1,558 @@
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 1: COMPACT CORE & UNLOAD INFRASTRUCTURE
+-- ============================================================================
+_G.CorrectKey = "wonq333" 
+_G.RainActive = true
+_G.FatalityIntroFinished = false 
+_G.RainLinesVisible = true
+_G.RainAlphaMultiplier = 1.0
+_G.MaxAttempts, _G.CurrentAttempts = 3, 0
+_G.RealExecutorName = "Xeno"
+_G.CheatHubOpened = false
+
+local TweenService = game:GetService("TweenService")
+_G.TS = TweenService
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local MarketPlaceService = game:GetService("MarketplaceService")
+
+_G.LocalPlayer = Players.LocalPlayer
+_G.ParentFolder = (gethui and gethui()) or CoreGui
+_G.AnimInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Переменная для хранения ссылки на ваш GitHub-репозиторий (Raw ссылка)
+_G.GitHubRawURL = "https://githubusercontent.com"
+
+_G.LevitationActive = true
+_G.HubLevitation = true
+
+local function EmergencyCleanAll()
+    _G.RainActive = false
+    _G.LevitationActive = false
+    _G.HubLevitation = false
+    
+    if _G.FloatConnection then pcall(function() _G.FloatConnection:Disconnect() end) end
+    if _G.MenuFloatConnection then pcall(function() _G.MenuFloatConnection:Disconnect() end) end
+    if _G.TimeConnection then pcall(function() _G.TimeConnection:Disconnect() end) end
+    if _G.RainConnection then pcall(function() _G.RainConnection:Disconnect() end) end
+
+    local folders = {CoreGui, (gethui and gethui())}
+    for _, folder in ipairs(folders) do
+        if folder then
+            if folder:FindFirstChild("FatalityBackgroundUI") then pcall(function() folder.FatalityBackgroundUI:Destroy() end) end
+            if folder:FindFirstChild("FatalityIntroUI") then pcall(function() folder.FatalityIntroUI:Destroy() end) end
+            if folder:FindFirstChild("FatalityPremiumUI") then pcall(function() folder.FatalityPremiumUI:Destroy() end) end
+            if folder:FindFirstChild("FatalityCheatMenuUI") then pcall(function() folder.FatalityCheatMenuUI:Destroy() end) end
+        end
+    end
+    
+    if Lighting:FindFirstChild("FatalityBlur") then pcall(function() Lighting.FatalityBlur:Destroy() end) end
+    
+    UserInputService.MouseIconEnabled = true
+    print("[FATALITY] Анлоад выполнен. Ресурсы очищены.")
+end
+_G.EmergencyCleanAll = EmergencyCleanAll
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if input.KeyCode == Enum.KeyCode.End then 
+        _G.EmergencyCleanAll() 
+    end
+end)
+
+_G.EmergencyCleanAll() 
+task.wait(0.1)
+_G.RainActive = true 
+print("[FATALITY] Часть 1 лоадера успешно инициализирована.")
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 2: HARDWARE SCALE RAIN ENGINE
+-- ============================================================================
+local BackgroundGui = Instance.new("ScreenGui")
+BackgroundGui.Name = "FatalityBackgroundUI"
+BackgroundGui.ResetOnSpawn = false
+BackgroundGui.IgnoreGuiInset = true
+BackgroundGui.Parent = _G.ParentFolder
+
+_G.FatalityDimObj = Instance.new("Frame")
+_G.FatalityDimObj.Size = UDim2.new(1, 0, 1, 0)
+_G.FatalityDimObj.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+_G.FatalityDimObj.BackgroundTransparency = 1 
+_G.FatalityDimObj.BorderSizePixel = 0
+_G.FatalityDimObj.Parent = BackgroundGui
+
+game:GetService("TweenService"):Create(_G.FatalityDimObj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.6}):Play()
+
+local RainContainer = Instance.new("Frame")
+RainContainer.Name = "RainContainer"
+RainContainer.Size = UDim2.new(1, 0, 1, 0)
+RainContainer.BackgroundTransparency = 1
+RainContainer.Parent = BackgroundGui
+
+local RAIN_DROP_COUNT = 380 
+local allDrops = {}
+math.randomseed(os.time())
+
+for i = 1, RAIN_DROP_COUNT do
+    local drop = Instance.new("Frame")
+    drop.BorderSizePixel = 0
+    drop.AnchorPoint = Vector2.new(0.5, 0)
+    drop.Parent = RainContainer
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 90
+    gradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(0.7, 0.3),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    gradient.Parent = drop
+
+    local isBg = (i <= 250)
+    local width, length, speed, baseAlpha, color
+    
+    if isBg then 
+        width = 1
+        length = math.random(12, 18)
+        speed = 0.015 + (math.random(0, 100) / 10000)
+        baseAlpha = math.random(35, 60) / 100
+        color = Color3.fromRGB(180, 25, 25) 
+    else 
+        local sub = math.random(1, 2)
+        if sub == 1 then
+            width = 2
+            length = math.random(18, 24)
+            speed = 0.025 + (math.random(0, 100) / 10000)
+            baseAlpha = math.random(55, 75) / 100
+        else
+            width = 3
+            length = math.random(26, 38)
+            speed = 0.035 + (math.random(0, 100) / 10000)
+            baseAlpha = math.random(75, 95) / 100
+        end
+        color = Color3.fromRGB(245, 30, 30) 
+    end
+
+    drop.Size = UDim2.new(0, width, 0, length)
+    drop.BackgroundColor3 = color
+    drop.Rotation = -2
+
+    table.insert(allDrops, {
+        Object = drop,
+        Speed = speed,
+        Length = length,
+        X = math.random(0, 10000) / 10000,
+        Y = math.random(0, 10000) / 10000,
+        Alpha = baseAlpha
+    })
+end
+
+_G.RainConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+    if not _G.RainActive then 
+        if _G.RainConnection then _G.RainConnection:Disconnect() end
+        return 
+    end
+    if dt > 0.05 then dt = 0.05 end
+
+    for _, data in ipairs(allDrops) do
+        data.Y = data.Y + (data.Speed * dt * 5.5)
+        data.X = data.X + (data.Speed * 0.04 * dt * 5.5)
+
+        if data.Y > 1.05 then 
+            data.Y = -0.05
+            data.X = math.random(0, 10000) / 10000
+        end
+        if data.X > 1.02 then data.X = -0.02 elseif data.X < -0.02 then data.X = 1.02 end
+
+        data.Object.Visible = _G.RainLinesVisible
+        data.Object.Position = UDim2.fromScale(data.X, data.Y)
+        data.Object.BackgroundTransparency = (1 - data.Alpha) * (_G.RainAlphaMultiplier or 1)
+    end
+end)
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 3: INTRO ANIMATION SEQUENCER
+-- ============================================================================
+local TweenService = game:GetService("TweenService")
+_G.FatalityBlurObj = Instance.new("BlurEffect")
+_G.FatalityBlurObj.Name = "FatalityBlur"
+_G.FatalityBlurObj.Size = 0
+_G.FatalityBlurObj.Parent = game:GetService("Lighting")
+TweenService:Create(_G.FatalityBlurObj, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = 14}):Play()
+
+local ScreenGuiIntro = Instance.new("ScreenGui")
+ScreenGuiIntro.Name = "FatalityIntroUI"
+ScreenGuiIntro.ResetOnSpawn = false
+ScreenGuiIntro.IgnoreGuiInset = true 
+ScreenGuiIntro.Parent = _G.ParentFolder
+
+local MainFrameIntro = Instance.new("Frame")
+MainFrameIntro.Size = UDim2.new(1, 0, 1, 0)
+MainFrameIntro.BackgroundTransparency = 1
+MainFrameIntro.Parent = ScreenGuiIntro
+
+local FONT_SIZE = 110 local TOTAL_WIDTH = 550 local LETTER_F_WIDTH = 70 
+
+local CenterContainer = Instance.new("Frame")
+CenterContainer.Size = UDim2.new(0, TOTAL_WIDTH, 0, 200)
+CenterContainer.Position = UDim2.new(0.5, 0, 0.48, 0) 
+CenterContainer.AnchorPoint = Vector2.new(0.5, 0.5) 
+CenterContainer.BackgroundTransparency = 1 CenterContainer.ZIndex = 5 CenterContainer.Parent = MainFrameIntro
+
+local InitialF = Instance.new("TextLabel")
+InitialF.Size = UDim2.new(0, TOTAL_WIDTH, 0, 120)
+InitialF.BackgroundTransparency = 1 InitialF.Text = "F" InitialF.Font = Enum.Font.SourceSansBold
+InitialF.TextSize = FONT_SIZE InitialF.TextColor3 = Color3.fromRGB(220, 20, 20) InitialF.TextTransparency = 1 
+InitialF.TextXAlignment = Enum.TextXAlignment.Center InitialF.ZIndex = 5 InitialF.Parent = CenterContainer
+
+local RevealMask = Instance.new("Frame")
+RevealMask.Size = UDim2.new(0, LETTER_F_WIDTH, 0, 120) RevealMask.Position = UDim2.new(0, (TOTAL_WIDTH / 2) - (LETTER_F_WIDTH / 2), 0, 0)
+RevealMask.BackgroundTransparency = 1 RevealMask.ClipsDescendants = true RevealMask.ZIndex = 5 RevealMask.Parent = CenterContainer
+
+local FullText = Instance.new("TextLabel")
+FullText.Size = UDim2.new(0, TOTAL_WIDTH, 0, 120) FullText.Position = UDim2.new(0, -(TOTAL_WIDTH / 2) + (LETTER_F_WIDTH / 2), 0, 0)
+FullText.BackgroundTransparency = 1 FullText.Text = "FATALITY" FullText.Font = Enum.Font.SourceSansBold
+FullText.TextSize = FONT_SIZE FullText.TextColor3 = Color3.fromRGB(220, 20, 20) FullText.TextTransparency = 1 
+FullText.TextXAlignment = Enum.TextXAlignment.Center FullText.ZIndex = 5 FullText.Parent = RevealMask
+
+local ExternalText = Instance.new("TextLabel")
+ExternalText.Size = UDim2.new(1, 0, 0, 60) ExternalText.Position = UDim2.new(0, 0, 0, 30) ExternalText.BackgroundTransparency = 1
+ExternalText.Text = "EXTERNAL" ExternalText.Font = Enum.Font.SourceSansBold ExternalText.TextSize = 55 
+ExternalText.TextColor3 = Color3.fromRGB(140, 15, 15) ExternalText.TextTransparency = 1 ExternalText.TextXAlignment = Enum.TextXAlignment.Center 
+ExternalText.ZIndex = 4 ExternalText.Parent = CenterContainer
+
+local BottomContainer = Instance.new("Frame")
+BottomContainer.Size = UDim2.new(0, 220, 0, 50) BottomContainer.Position = UDim2.new(0.5, 0, 0.985, 0) BottomContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+BottomContainer.BackgroundTransparency = 1 BottomContainer.ZIndex = 5 BottomContainer.Parent = MainFrameIntro
+
+local PercentageText = Instance.new("TextLabel")
+PercentageText.Size = UDim2.new(1, 0, 0, 14) PercentageText.BackgroundTransparency = 1 PercentageText.Text = "0%" PercentageText.Font = Enum.Font.SourceSans
+PercentageText.TextSize = 11 PercentageText.TextColor3 = Color3.fromRGB(160, 160, 160) PercentageText.TextTransparency = 1 PercentageText.TextXAlignment = Enum.TextXAlignment.Center PercentageText.Parent = BottomContainer
+
+local ProgressTrack = Instance.new("Frame")
+ProgressTrack.Size = UDim2.new(1, 0, 0, 2) ProgressTrack.Position = UDim2.new(0, 0, 0, 18) ProgressTrack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ProgressTrack.BackgroundTransparency = 1 ProgressTrack.BorderSizePixel = 0 ProgressTrack.Parent = BottomContainer
+Instance.new("UICorner", ProgressTrack).CornerRadius = UDim.new(0, 1)
+
+local ProgressBar = Instance.new("Frame")
+ProgressBar.Size = UDim2.new(0, 0, 1, 0) ProgressBar.BackgroundColor3 = Color3.fromRGB(220, 20, 20) ProgressBar.BorderSizePixel = 0 ProgressBar.Parent = ProgressTrack
+Instance.new("UICorner", ProgressBar).CornerRadius = UDim.new(0, 1)
+
+local WatermarkText = Instance.new("TextLabel")
+WatermarkText.Size = UDim2.new(1, 0, 0, 14) WatermarkText.Position = UDim2.new(0, 0, 0, 24) WatermarkText.BackgroundTransparency = 1
+WatermarkText.Text = "fatality.win" WatermarkText.Font = Enum.Font.SourceSans WatermarkText.TextSize = 10 
+WatermarkText.TextColor3 = Color3.fromRGB(180, 20, 20) WatermarkText.TextTransparency = 1 WatermarkText.TextXAlignment = Enum.TextXAlignment.Center 
+WatermarkText.Parent = BottomContainer
+
+task.spawn(function()
+    pcall(function()
+        TweenService:Create(InitialF, TweenInfo.new(0.4), {TextTransparency = 0}):Play()
+        TweenService:Create(PercentageText, TweenInfo.new(0.4), {TextTransparency = 0}):Play()
+        TweenService:Create(ProgressTrack, TweenInfo.new(0.4), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(WatermarkText, TweenInfo.new(0.4), {TextTransparency = 0}):Play()
+    end)
+    task.wait(0.5)
+
+    FullText.TextTransparency = 0
+    if InitialF and InitialF.Parent then InitialF:Destroy() end
+
+    local MoveInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quart)
+    pcall(function()
+        TweenService:Create(RevealMask, MoveInfo, {Size = UDim2.new(0, 550, 0, 120), Position = UDim2.new(0, 0, 0, 0)}):Play()
+        TweenService:Create(FullText, MoveInfo, {Position = UDim2.new(0, 0, 0, 0)}):Play()
+    end)
+    task.wait(0.5)
+
+    ExternalText.TextTransparency = 0
+    pcall(function()
+        TweenService:Create(ExternalText, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Position = UDim2.new(0, 0, 0, 90)}):Play()
+        TweenService:Create(ProgressBar, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+    end)
+
+    for i = 0, 100, 4 do 
+        if not _G.RainActive then return end 
+        PercentageText.Text = tostring(i) .. "%" 
+        task.wait(0.02) 
+    end
+    task.wait(0.3)
+
+    local FadeInfo = TweenInfo.new(0.3)
+    pcall(function()
+        TweenService:Create(FullText, FadeInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(ExternalText, FadeInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(PercentageText, FadeInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(ProgressTrack, FadeInfo, {BackgroundTransparency = 1}):Play()
+        TweenService:Create(ProgressBar, FadeInfo, {BackgroundTransparency = 1}):Play()
+        TweenService:Create(WatermarkText, FadeInfo, {TextTransparency = 1}):Play()
+    end)
+    task.wait(0.3)
+
+    if ScreenGuiIntro and ScreenGuiIntro.Parent then ScreenGuiIntro:Destroy() end
+    _G.FatalityIntroFinished = true
+end)
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 4: LAUNCHER FRAME CONSTRUCTOR
+-- ============================================================================
+local ScreenGuiMain = Instance.new("ScreenGui")
+ScreenGuiMain.Name = "FatalityPremiumUI"
+ScreenGuiMain.ResetOnSpawn = false
+ScreenGuiMain.Parent = _G.ParentFolder
+
+_G.MainFrame = Instance.new("Frame")
+_G.MainFrame.Name = "MainFrame"
+_G.MainFrame.Size = UDim2.new(0, 420, 0, 400) 
+local basePosition = UDim2.new(0.5, -210, 0.5, -200)
+_G.MainFrame.Position = basePosition
+_G.MainFrame.BackgroundColor3 = Color3.fromRGB(6, 6, 6) 
+_G.MainFrame.BackgroundTransparency = 0.1
+_G.MainFrame.BorderSizePixel = 0
+_G.MainFrame.Visible = false 
+_G.MainFrame.Parent = ScreenGuiMain
+
+Instance.new("UICorner", _G.MainFrame).CornerRadius = UDim.new(0, 16)
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(45, 45, 45) 
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = _G.MainFrame
+
+task.spawn(function()
+    while not _G.FatalityIntroFinished do task.wait(0.1) end
+    if _G.MainFrame and _G.RainActive then _G.MainFrame.Visible = true end
+end)
+
+game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.Delete then
+        if _G.MainFrame and _G.MainFrame.Parent and _G.FatalityIntroFinished and not _G.CheatHubOpened then 
+            _G.MainFrame.Visible = not _G.MainFrame.Visible 
+            _G.RainLinesVisible = _G.MainFrame.Visible
+            if _G.FatalityBlurObj then _G.FatalityBlurObj.Size = _G.MainFrame.Visible and 14 or 0 end
+            if _G.FatalityDimObj then _G.FatalityDimObj.BackgroundTransparency = _G.MainFrame.Visible and 0.6 or 1 end
+        end
+    end
+end)
+
+local Logo = Instance.new("TextLabel")
+Logo.Size = UDim2.new(1, 0, 0, 50)
+Logo.Position = UDim2.new(0, 0, 0, 15)
+Logo.Text = "F A T A L I T Y"
+Logo.TextColor3 = Color3.fromRGB(255, 255, 255) 
+Logo.TextSize = 18
+Logo.Font = Enum.Font.GothamBold
+Logo.BackgroundTransparency = 1
+Logo.Parent = _G.MainFrame
+
+local InfoFrame = Instance.new("Frame")
+InfoFrame.Size = UDim2.new(0, 360, 0, 140)
+InfoFrame.Position = UDim2.new(0.5, -180, 0, 70)
+InfoFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 14) 
+InfoFrame.BackgroundTransparency = 0.3
+InfoFrame.BorderSizePixel = 0
+InfoFrame.Parent = _G.MainFrame
+Instance.new("UICorner", InfoFrame).CornerRadius = UDim.new(0, 10)
+
+local InfoStroke = Instance.new("UIStroke")
+InfoStroke.Thickness = 1
+InfoStroke.Color = Color3.fromRGB(35, 35, 35)
+InfoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+InfoStroke.Parent = InfoFrame
+
+local function CreateDataLine(text, yPos)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -24, 0, 20)
+    Label.Position = UDim2.new(0, 12, 0, yPos)
+    Label.Text = text
+    Label.RichText = true
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamBold -- УБРАН ОШИБОЧНЫЙ ШРИФТ
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.Parent = InfoFrame
+    return Label
+end
+
+local function GetRealExecutor()
+    if identifyexecutor then 
+        local name, ver = identifyexecutor()
+        return tostring(name)
+    end
+    if getexecutorname then return tostring(getexecutorname()) end
+    if getgenv and getgenv().checkclosure then return "Solara" end
+    if getgenv and getgenv().lvx then return "Xeno" end
+    if getgenv and getgenv().madium then return "Madium" end
+    return "Xeno"
+end
+
+_G.RealExecutorName = GetRealExecutor()
+
+CreateDataLine("Username: <font color=\"#ff2a2a\">" .. _G.LocalPlayer.Name .. "</font>", 8)
+CreateDataLine("Display Name: <font color=\"#ffffff\">" .. _G.LocalPlayer.DisplayName .. "</font>", 28)
+CreateDataLine("Account Age: <font color=\"#ffffff\">" .. _G.LocalPlayer.AccountAge .. " days</font>", 48)
+CreateDataLine("Executor: <font color=\"#ff2a2a\">" .. _G.RealExecutorName .. "</font>", 68)
+
+_G.TimeLabel = CreateDataLine("Time: <font color=\"#ffffff\">00:00:00</font>", 88)
+_G.AttemptsLabel = CreateDataLine("Attempts Left: <font color=\"#ffffff\">3 / 3</font>", 108)
+
+_G.KeyInput = Instance.new("TextBox")
+_G.KeyInput.Size = UDim2.new(0, 360, 0, 38)
+_G.KeyInput.Position = UDim2.new(0.5, -180, 0, 225)
+_G.KeyInput.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+_G.KeyInput.BackgroundTransparency = 0.1
+_G.KeyInput.Text = ""
+_G.KeyInput.PlaceholderText = "enter access key here..."
+_G.KeyInput.PlaceholderColor3 = Color3.fromRGB(70, 70, 70)
+_G.KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+_G.KeyInput.TextSize = 13
+_G.KeyInput.Font = Enum.Font.Gotham
+_G.KeyInput.BorderSizePixel = 0
+_G.KeyInput.ClearTextOnFocus = false
+_G.KeyInput.Parent = _G.MainFrame
+Instance.new("UICorner", _G.KeyInput).CornerRadius = UDim.new(0, 8)
+
+_G.InputStroke = Instance.new("UIStroke")
+_G.InputStroke.Thickness = 1
+_G.InputStroke.Color = Color3.fromRGB(35, 35, 35)
+_G.InputStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+_G.InputStroke.Parent = _G.KeyInput
+
+_G.SubmitButton = Instance.new("TextButton")
+_G.SubmitButton.Size = UDim2.new(0, 360, 0, 42)
+_G.SubmitButton.Position = UDim2.new(0.5, -180, 0, 280)
+_G.SubmitButton.BackgroundColor3 = Color3.fromRGB(235, 20, 20) 
+_G.SubmitButton.Text = "Verify And Inject"
+_G.SubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+_G.SubmitButton.TextSize = 13
+_G.SubmitButton.Font = Enum.Font.GothamBold
+_G.SubmitButton.BorderSizePixel = 0
+_G.SubmitButton.Parent = _G.MainFrame
+Instance.new("UICorner", _G.SubmitButton).CornerRadius = UDim.new(0, 8)
+
+_G.ButtonGlow = Instance.new("UIStroke")
+_G.ButtonGlow.Thickness = 1.5
+_G.ButtonGlow.Color = Color3.fromRGB(255, 60, 60)
+_G.ButtonGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+_G.ButtonGlow.Parent = _G.SubmitButton
+
+_G.FloatConnection = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.LevitationActive or not _G.MainFrame or not _G.MainFrame.Visible or _G.CheatHubOpened then return end
+    _G.MainFrame.Position = basePosition + UDim2.new(0, 0, 0, math.sin(tick() * 2) * 12)
+end)
+
+_G.StopFloat = function() _G.LevitationActive = false if _G.FloatConnection then _G.FloatConnection:Disconnect() end end
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 5: GAME LOCK & VERIFICATION ENGINE (UPDATED KICK)
+-- ============================================================================
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local MarketPlaceService = game:GetService("MarketplaceService")
+
+_G.TimeConnection = RunService.Heartbeat:Connect(function()
+    if _G.TimeLabel and _G.TimeLabel.Parent then
+        _G.TimeLabel.Text = "Time: <font color='rgb(255, 255, 255)'>" .. os.date("%X") .. "</font>"
+    end
+end)
+
+if _G.KeyInput and _G.InputStroke then
+    _G.KeyInput.Focused:Connect(function() TweenService:Create(_G.InputStroke, _G.AnimInfo, {Color = Color3.fromRGB(245, 30, 30)}):Play() end)
+    _G.KeyInput.FocusLost:Connect(function() TweenService:Create(_G.InputStroke, _G.AnimInfo, {Color = Color3.fromRGB(40, 40, 40)}):Play() end)
+end
+
+_G.ShutdownAndLaunchUI = function(callback)
+    -- ФИКС: УБРАНО ОШИБОЧНОЕ ОДИНОЧНОЕ РАВЕНСТВО (СТРОКА 612)
+    if _G.StopFloat then _G.StopFloat() end
+    if _G.TimeConnection then _G.TimeConnection:Disconnect() end
+    
+    local mainUI = _G.MainFrame.Parent
+    local fadeTween = TweenService:Create(_G.MainFrame, TweenInfo.new(0.3), {Position = _G.MainFrame.Position + UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1})
+    
+    for _, item in ipairs(_G.MainFrame:GetChildren()) do 
+        if not item:IsA("UICorner") then 
+            pcall(function() TweenService:Create(item, TweenInfo.new(0.15), {BackgroundTransparency = 1, TextTransparency = 1}):Play() end) 
+        end 
+    end
+    
+    fadeTween:Play() 
+    fadeTween.Completed:Connect(function()
+        if mainUI then mainUI:Destroy() end 
+        if callback then callback() end
+    end)
+end
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 6: KEY VERIFICATION AND GITHUB LOADSTRING
+-- ============================================================================
+local TweenService = game:GetService("TweenService")
+local MarketPlaceService = game:GetService("MarketplaceService")
+
+local function LaunchHubCode()
+    -- Попытка удаленного скачивания интерфейса хаба из вашего GitHub
+    local success, scriptContent = pcall(function() 
+        return game:HttpGet(_G.GitHubRawURL) 
+    end)
+    
+    if success and scriptContent and not scriptContent:find("404: Not Found") then
+        local run, err = loadstring(scriptContent)
+        if run then 
+            run() 
+        else 
+            warn("[FATALITY LOADER ERROR]: " .. tostring(err)) 
+        end
+    else
+        -- Заглушка: если репозиторий пока пустой, запустить хаб из локальной памяти инжектора
+        if _G.ActivateCheatMenu then 
+            _G.ActivateCheatMenu() 
+            print("[FATALITY LOADER]: Запущен локальный билд хаба из памяти.")
+        else
+            warn("[FATALITY LOADER ERROR]: GitHub raw ссылка пуста, а локальный билд хаба не обнаружен.")
+        end
+    end
+end
+
+local function runVerification()
+    if game.PlaceId ~= 155615604 then
+        local currentPlaceName = "Unknown Game"
+        pcall(function()
+            local productInfo = MarketPlaceService:GetProductInfo(game.PlaceId)
+            if productInfo then currentPlaceName = productInfo.Name end
+        end)
+        if _G.StopFloat then _G.StopFloat() end
+        if _G.TimeConnection then _G.TimeConnection:Disconnect() end
+        _G.LocalPlayer:Kick("\n\nзайди в присон лайф уебан а не в \"" .. currentPlaceName .. "\"")
+        return
+    end
+
+    local key = _G.CorrectKey or "wonq333" 
+    if _G.KeyInput.Text == key then
+        _G.SubmitButton.Text = "Success"
+        TweenService:Create(_G.SubmitButton, _G.AnimInfo, {BackgroundColor3 = Color3.fromRGB(35, 165, 75)}):Play()
+        if _G.ButtonGlow then TweenService:Create(_G.ButtonGlow, _G.AnimInfo, {Color = Color3.fromRGB(100, 255, 140)}):Play() end
+        task.wait(0.3)
+        _G.ShutdownAndLaunchUI(function()
+            -- Триггер запуска подгрузки скрипта
+            LaunchHubCode()
+        end)
+    else
+        _G.CurrentAttempts = _G.CurrentAttempts + 1
+        local remaining = _G.MaxAttempts - _G.CurrentAttempts
+        if remaining > 0 then
+            if _G.AttemptsLabel then _G.AttemptsLabel.Text = "Attempts Left: <font color='rgb(255, 60, 60)'>" .. remaining .. " / 3</font>" end
+            _G.SubmitButton.Text = "Access Denied"
+            TweenService:Create(_G.SubmitButton, _G.AnimInfo, {BackgroundColor3 = Color3.fromRGB(185, 30, 30)}):Play()
+            if _G.ButtonGlow then TweenService:Create(_G.ButtonGlow, _G.AnimInfo, {Color = Color3.fromRGB(255, 100, 100)}):Play() end
+            _G.KeyInput.Text = ""
+            task.wait(1.2)
+            _G.SubmitButton.Text = "Verify And Inject"
+            TweenService:Create(_G.SubmitButton, _G.AnimInfo, {BackgroundColor3 = Color3.fromRGB(245, 30, 30)}):Play()
+            if _G.ButtonGlow then TweenService:Create(_G.ButtonGlow, _G.AnimInfo, {Color = Color3.fromRGB(255, 80, 80)}):Play() end
+        else
+            if _G.AttemptsLabel then _G.AttemptsLabel.Text = "Attempts Left: <font color='rgb(255, 60, 60)'>0 / 3</font>" end
+            _G.SubmitButton.Text = "Kicking..."
+            task.wait(0.5)
+            if _G.StopFloat then _G.StopFloat() end
+            if _G.TimeConnection then _G.TimeConnection:Disconnect() end
+            _G.LocalPlayer:Kick("\n\nпошел нахуй ключ не верный\nлучше купи его в тг t.me/wonqys")
+        end
+    end
+end
+
+if _G.SubmitButton then _G.SubmitButton.MouseButton1Click:Connect(runVerification) end
