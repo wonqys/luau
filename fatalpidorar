@@ -1,5 +1,5 @@
 -- ============================================================================
--- FATALITY EXTERNAL — PART 1: COMPACT CORE & UNLOAD INFRASTRUCTURE
+-- FATALITY EXTERNAL — PART 1: CORE INITIALIZATION
 -- ============================================================================
 _G.CorrectKey = "wonq333" 
 _G.RainActive = true
@@ -23,9 +23,7 @@ _G.LocalPlayer = Players.LocalPlayer
 _G.ParentFolder = (gethui and gethui()) or CoreGui
 _G.AnimInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- Переменная для хранения ссылки на ваш GitHub-репозиторий (Raw ссылка)
 _G.GitHubRawURL = "https://githubusercontent.com"
-
 _G.LevitationActive = true
 _G.HubLevitation = true
 
@@ -50,22 +48,18 @@ local function EmergencyCleanAll()
     end
     
     if Lighting:FindFirstChild("FatalityBlur") then pcall(function() Lighting.FatalityBlur:Destroy() end) end
-    
     UserInputService.MouseIconEnabled = true
     print("[FATALITY] Анлоад выполнен. Ресурсы очищены.")
 end
 _G.EmergencyCleanAll = EmergencyCleanAll
 
 UserInputService.InputBegan:Connect(function(input, processed)
-    if input.KeyCode == Enum.KeyCode.End then 
-        _G.EmergencyCleanAll() 
-    end
+    if input.KeyCode == Enum.KeyCode.End then _G.EmergencyCleanAll() end
 end)
 
 _G.EmergencyCleanAll() 
 task.wait(0.1)
-_G.RainActive = true 
-print("[FATALITY] Часть 1 лоадера успешно инициализирована.")
+_G.RainActive = true
 -- ============================================================================
 -- FATALITY EXTERNAL — PART 2: HARDWARE SCALE RAIN ENGINE
 -- ============================================================================
@@ -99,7 +93,6 @@ for i = 1, RAIN_DROP_COUNT do
     drop.BorderSizePixel = 0
     drop.AnchorPoint = Vector2.new(0.5, 0)
     drop.Parent = RainContainer
-
     local gradient = Instance.new("UIGradient")
     gradient.Rotation = 90
     gradient.Transparency = NumberSequence.new({
@@ -111,69 +104,30 @@ for i = 1, RAIN_DROP_COUNT do
 
     local isBg = (i <= 250)
     local width, length, speed, baseAlpha, color
-    
     if isBg then 
-        width = 1
-        length = math.random(12, 18)
-        speed = 0.015 + (math.random(0, 100) / 10000)
-        baseAlpha = math.random(35, 60) / 100
-        color = Color3.fromRGB(180, 25, 25) 
+        width = 1 length = math.random(12, 18) speed = 0.015 + (math.random(0, 100) / 10000) baseAlpha = math.random(35, 60) / 100 color = Color3.fromRGB(180, 25, 25) 
     else 
         local sub = math.random(1, 2)
-        if sub == 1 then
-            width = 2
-            length = math.random(18, 24)
-            speed = 0.025 + (math.random(0, 100) / 10000)
-            baseAlpha = math.random(55, 75) / 100
-        else
-            width = 3
-            length = math.random(26, 38)
-            speed = 0.035 + (math.random(0, 100) / 10000)
-            baseAlpha = math.random(75, 95) / 100
-        end
+        if sub == 1 then width = 2 length = math.random(18, 24) speed = 0.025 + (math.random(0, 100) / 10000) baseAlpha = math.random(55, 75) / 100 else width = 3 length = math.random(26, 38) speed = 0.035 + (math.random(0, 100) / 10000) baseAlpha = math.random(75, 95) / 100 end
         color = Color3.fromRGB(245, 30, 30) 
     end
-
-    drop.Size = UDim2.new(0, width, 0, length)
-    drop.BackgroundColor3 = color
-    drop.Rotation = -2
-
-    table.insert(allDrops, {
-        Object = drop,
-        Speed = speed,
-        Length = length,
-        X = math.random(0, 10000) / 10000,
-        Y = math.random(0, 10000) / 10000,
-        Alpha = baseAlpha
-    })
+    drop.Size = UDim2.new(0, width, 0, length) drop.BackgroundColor3 = color drop.Rotation = -2
+    table.insert(allDrops, {Object = drop, Speed = speed, Length = length, X = math.random(0, 10000) / 10000, Y = math.random(0, 10000) / 10000, Alpha = baseAlpha})
 end
 
 _G.RainConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
-    if not _G.RainActive then 
-        if _G.RainConnection then _G.RainConnection:Disconnect() end
-        return 
-    end
+    if not _G.RainActive then if _G.RainConnection then _G.RainConnection:Disconnect() end return end
     if dt > 0.05 then dt = 0.05 end
-
     for _, data in ipairs(allDrops) do
-        data.Y = data.Y + (data.Speed * dt * 5.5)
-        data.X = data.X + (data.Speed * 0.04 * dt * 5.5)
-
-        if data.Y > 1.05 then 
-            data.Y = -0.05
-            data.X = math.random(0, 10000) / 10000
-        end
+        data.Y = data.Y + (data.Speed * dt * 5.5) data.X = data.X + (data.Speed * 0.04 * dt * 5.5)
+        if data.Y > 1.05 then data.Y = -0.05 data.X = math.random(0, 10000) / 10000 end
         if data.X > 1.02 then data.X = -0.02 elseif data.X < -0.02 then data.X = 1.02 end
-
-        data.Object.Visible = _G.RainLinesVisible
-        data.Object.Position = UDim2.fromScale(data.X, data.Y)
-        data.Object.BackgroundTransparency = (1 - data.Alpha) * (_G.RainAlphaMultiplier or 1)
+        data.Object.Visible = _G.RainLinesVisible data.Object.Position = UDim2.fromScale(data.X, data.Y) data.Object.BackgroundTransparency = (1 - data.Alpha) * (_G.RainAlphaMultiplier or 1)
     end
 end)
 -- ============================================================================
--- FATALITY EXTERNAL — PART 3: INTRO ANIMATION SEQUENCER
+-- FATALITY EXTERNAL — PART 3: INTRO & MAIN FRAME CONSTRUCTOR
 -- ============================================================================
-local TweenService = game:GetService("TweenService")
 _G.FatalityBlurObj = Instance.new("BlurEffect")
 _G.FatalityBlurObj.Name = "FatalityBlur"
 _G.FatalityBlurObj.Size = 0
@@ -290,9 +244,7 @@ task.spawn(function()
     if ScreenGuiIntro and ScreenGuiIntro.Parent then ScreenGuiIntro:Destroy() end
     _G.FatalityIntroFinished = true
 end)
--- ============================================================================
--- FATALITY EXTERNAL — PART 4: LAUNCHER FRAME CONSTRUCTOR
--- ============================================================================
+
 local ScreenGuiMain = Instance.new("ScreenGui")
 ScreenGuiMain.Name = "FatalityPremiumUI"
 ScreenGuiMain.ResetOnSpawn = false
@@ -315,12 +267,15 @@ MainStroke.Thickness = 1.5
 MainStroke.Color = Color3.fromRGB(45, 45, 45) 
 MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 MainStroke.Parent = _G.MainFrame
-
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 4: DATA SCANNER & LABELS
+-- ============================================================================
 task.spawn(function()
     while not _G.FatalityIntroFinished do task.wait(0.1) end
     if _G.MainFrame and _G.RainActive then _G.MainFrame.Visible = true end
 end)
 
+local basePosition = UDim2.new(0.5, -210, 0.5, -200)
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.Delete then
         if _G.MainFrame and _G.MainFrame.Parent and _G.FatalityIntroFinished and not _G.CheatHubOpened then 
@@ -364,7 +319,7 @@ local function CreateDataLine(text, yPos)
     Label.Text = text
     Label.RichText = true
     Label.TextSize = 12
-    Label.Font = Enum.Font.GothamBold -- УБРАН ОШИБОЧНЫЙ ШРИФТ
+    Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.BackgroundTransparency = 1
     Label.Parent = InfoFrame
@@ -408,7 +363,9 @@ _G.KeyInput.BorderSizePixel = 0
 _G.KeyInput.ClearTextOnFocus = false
 _G.KeyInput.Parent = _G.MainFrame
 Instance.new("UICorner", _G.KeyInput).CornerRadius = UDim.new(0, 8)
-
+-- ============================================================================
+-- FATALITY EXTERNAL — PART 5: VERIFICATION ENGINE & RESTRICION FEATURE
+-- ============================================================================
 _G.InputStroke = Instance.new("UIStroke")
 _G.InputStroke.Thickness = 1
 _G.InputStroke.Color = Color3.fromRGB(35, 35, 35)
@@ -433,19 +390,13 @@ _G.ButtonGlow.Color = Color3.fromRGB(255, 60, 60)
 _G.ButtonGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 _G.ButtonGlow.Parent = _G.SubmitButton
 
+local basePosition = UDim2.new(0.5, -210, 0.5, -200)
 _G.FloatConnection = game:GetService("RunService").RenderStepped:Connect(function()
     if not _G.LevitationActive or not _G.MainFrame or not _G.MainFrame.Visible or _G.CheatHubOpened then return end
     _G.MainFrame.Position = basePosition + UDim2.new(0, 0, 0, math.sin(tick() * 2) * 12)
 end)
 
 _G.StopFloat = function() _G.LevitationActive = false if _G.FloatConnection then _G.FloatConnection:Disconnect() end end
--- ============================================================================
--- FATALITY EXTERNAL — PART 5: GAME LOCK & VERIFICATION ENGINE (UPDATED KICK)
--- ============================================================================
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local MarketPlaceService = game:GetService("MarketplaceService")
 
 _G.TimeConnection = RunService.Heartbeat:Connect(function()
     if _G.TimeLabel and _G.TimeLabel.Parent then
@@ -459,7 +410,6 @@ if _G.KeyInput and _G.InputStroke then
 end
 
 _G.ShutdownAndLaunchUI = function(callback)
-    -- ФИКС: УБРАНО ОШИБОЧНОЕ ОДИНОЧНОЕ РАВЕНСТВО (СТРОКА 612)
     if _G.StopFloat then _G.StopFloat() end
     if _G.TimeConnection then _G.TimeConnection:Disconnect() end
     
@@ -478,37 +428,26 @@ _G.ShutdownAndLaunchUI = function(callback)
         if callback then callback() end
     end)
 end
--- ============================================================================
--- FATALITY EXTERNAL — PART 6: KEY VERIFICATION AND GITHUB LOADSTRING
--- ============================================================================
-local TweenService = game:GetService("TweenService")
-local MarketPlaceService = game:GetService("MarketplaceService")
 
 local function LaunchHubCode()
-    -- Попытка удаленного скачивания интерфейса хаба из вашего GitHub
     local success, scriptContent = pcall(function() 
         return game:HttpGet(_G.GitHubRawURL) 
     end)
     
     if success and scriptContent and not scriptContent:find("404: Not Found") then
         local run, err = loadstring(scriptContent)
-        if run then 
-            run() 
-        else 
-            warn("[FATALITY LOADER ERROR]: " .. tostring(err)) 
-        end
+        if run then run() else warn("[FATALITY LOADER ERROR]: " .. tostring(err)) end
     else
-        -- Заглушка: если репозиторий пока пустой, запустить хаб из локальной памяти инжектора
         if _G.ActivateCheatMenu then 
             _G.ActivateCheatMenu() 
-            print("[FATALITY LOADER]: Запущен локальный билд хаба из памяти.")
         else
-            warn("[FATALITY LOADER ERROR]: GitHub raw ссылка пуста, а локальный билд хаба не обнаружен.")
+            warn("[FATALITY LOADER ERROR]: GitHub raw ссылка пуста.")
         end
     end
 end
 
 local function runVerification()
+    -- ТВОЯ ФИЧА: Фильтр карт (кик отовсюду кроме Prison Life)
     if game.PlaceId ~= 155615604 then
         local currentPlaceName = "Unknown Game"
         pcall(function()
@@ -527,10 +466,7 @@ local function runVerification()
         TweenService:Create(_G.SubmitButton, _G.AnimInfo, {BackgroundColor3 = Color3.fromRGB(35, 165, 75)}):Play()
         if _G.ButtonGlow then TweenService:Create(_G.ButtonGlow, _G.AnimInfo, {Color = Color3.fromRGB(100, 255, 140)}):Play() end
         task.wait(0.3)
-        _G.ShutdownAndLaunchUI(function()
-            -- Триггер запуска подгрузки скрипта
-            LaunchHubCode()
-        end)
+        _G.ShutdownAndLaunchUI(function() LaunchHubCode() end)
     else
         _G.CurrentAttempts = _G.CurrentAttempts + 1
         local remaining = _G.MaxAttempts - _G.CurrentAttempts
