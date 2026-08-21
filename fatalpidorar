@@ -436,7 +436,7 @@ end
 
 local function LaunchHubCode()
     -- Вот сюда мы передаем прямую RAW-ссылку на твое меню из 1700 строк!
-    local targetMenuLink = loadstring(game:HttpGet("https://raw.githubusercontent.com/wonqys/luau/main/fatalmenu"))()
+    local targetMenuLink = "https://githubusercontent.com"
 
     local success, scriptContent = pcall(function() 
         return game:HttpGet(targetMenuLink) 
