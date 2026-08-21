@@ -464,18 +464,6 @@ local function LaunchHubCode()
     end
 end
 
-local function runVerification()
-    if game.PlaceId ~= 155615604 then
-        local currentPlaceName = "Unknown Game"
-        pcall(function()
-            local productInfo = MarketPlaceService:GetProductInfo(game.PlaceId)
-            if productInfo then currentPlaceName = productInfo.Name end
-        end)
-        if _G.StopFloat then _G.StopFloat() end
-        if _G.TimeConnection then _G.TimeConnection:Disconnect() end
-        _G.LocalPlayer:Kick("\n\nзайди в присон лайф уебан а не в \"" .. currentPlaceName .. "\"")
-        return
-    end
 
     local key = _G.CorrectKey or "wonq333" 
     if _G.KeyInput.Text == key then
