@@ -435,12 +435,13 @@ _G.ShutdownAndLaunchUI = function(callback)
 end
 
 local function LaunchHubCode()
-    -- ПОДСТАВЬ СЮДА URL ТВОЕГО ОСНОВНОГО СКРИПТА МЕНЮ (НА 1700 СТРОК) С ГИТХАБА
-    local targetMenuLink = "loadstring(game:HttpGet("https://raw.githubusercontent.com/wonqys/luau/main/fatalmenu"))()" 
+    -- Вот сюда мы передаем прямую RAW-ссылку на твое меню из 1700 строк!
+    local targetMenuLink = loadstring(game:HttpGet("https://raw.githubusercontent.com/wonqys/luau/main/fatalmenu"))()
 
     local success, scriptContent = pcall(function() 
         return game:HttpGet(targetMenuLink) 
     end)
+
     
     if success and scriptContent and not scriptContent:find("404: Not Found") and scriptContent ~= "" then
         -- Проверяем 1700 строк кода на синтаксические баги перед запуском
