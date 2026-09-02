@@ -1,0 +1,3656 @@
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 1А: ЯДРО МЕНЮ И СКРОЛЛ [GLOBAL BYPASS — CRASH FIX]
+-- =============================================================================
+
+-- Подтягиваем системные службы сразу в глобальную область для обхода лимита 200 регистров
+_G.GPlayers = game:GetService("Players")
+_G.GRunService = game:GetService("RunService")
+_G.GLighting = game:GetService("Lighting")
+
+_G.GLocalPlayer = _G.GPlayers.LocalPlayer
+_G.GCoreGuiContainer = (gethui and gethui()) or game:GetService("CoreGui")
+
+-- Принудительная зачистка старых сессий перед запуском
+if _G.GCoreGuiContainer:FindFirstChild("FatalityCheatMenuUI") then _G.GCoreGuiContainer.FatalityCheatMenuUI:Destroy() end
+if _G.GCoreGuiContainer:FindFirstChild("FatalityBackgroundUI") then _G.GCoreGuiContainer.FatalityBackgroundUI:Destroy() end
+for _, object in ipairs(_G.GLighting:GetChildren()) do if object.Name == "FatalityBlur" then object:Destroy() end end
+
+_G.AnimInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+_G.ByPassOpened = true
+_G.FatalityAllPages = {}
+_G.FatalityActiveTab = nil
+
+_G.defFogColor = _G.GLighting.FogColor; _G.defFogStart = _G.GLighting.FogStart; _G.defFogEnd = _G.GLighting.FogEnd
+
+_G.MainScreenGui = Instance.new("ScreenGui")
+_G.MainScreenGui.Name = "FatalityCheatMenuUI"
+_G.MainScreenGui.ResetOnSpawn = false; _G.MainScreenGui.IgnoreGuiInset = true; _G.MainScreenGui.Parent = _G.GCoreGuiContainer
+_G.FatalityCheatGui = _G.MainScreenGui
+
+_G.MainPanel = Instance.new("Frame")
+_G.MainPanel.Name = "MainPanel"; _G.MainPanel.Size = UDim2.new(0, 1000, 0, 680); _G.MainPanel.Position = UDim2.new(0.5, -500, 0.5, -340); _G.MainPanel.BackgroundColor3 = Color3.fromRGB(4, 4, 4); _G.MainPanel.BackgroundTransparency = 0.15; _G.MainPanel.Active = true; _G.MainPanel.Parent = _G.MainScreenGui
+
+_G.PanelStroke = Instance.new("UIStroke", _G.MainPanel); _G.PanelStroke.Color = Color3.fromRGB(50, 50, 55)
+_G.PanelCorner = Instance.new("UICorner", _G.MainPanel); _G.PanelCorner.CornerRadius = UDim.new(0, 24)
+
+_G.Sidebar = Instance.new("Frame")
+_G.Sidebar.Name = "Sidebar"; _G.Sidebar.Size = UDim2.new(0, 180, 1, 0); _G.Sidebar.BackgroundColor3 = Color3.fromRGB(2, 2, 2); _G.Sidebar.BackgroundTransparency = 0.1; _G.Sidebar.Parent = _G.MainPanel
+
+_G.SideLine = Instance.new("Frame", _G.Sidebar); _G.SideLine.Size = UDim2.new(0, 1, 1, 0); _G.SideLine.Position = UDim2.new(1, -1, 0, 0); _G.SideLine.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+
+_G.GPagesContainer = Instance.new("Frame")
+_G.GPagesContainer.Name = "PagesContainer"; _G.GPagesContainer.Size = UDim2.new(1, -180, 1, 0); _G.GPagesContainer.Position = UDim2.new(0, 180, 0, 0); _G.GPagesContainer.BackgroundTransparency = 1; _G.GPagesContainer.Parent = _G.MainPanel
+_G.MainPagesContainer = _G.GPagesContainer
+
+-- Глобальный конструктор страниц с поддержкой глубокого скролла 1200px
+_G.FatalityInitializePageGlobal = function(pageName, startsVisible)
+    _G.NewPageFrame = Instance.new("ScrollingFrame")
+    _G.NewPageFrame.Name = pageName
+    _G.NewPageFrame.Size = UDim2.new(1, 0, 1, 0)
+    _G.NewPageFrame.BackgroundTransparency = 1
+    _G.NewPageFrame.Visible = startsVisible
+    _G.NewPageFrame.ScrollBarThickness = 0 
+    _G.NewPageFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    _G.NewPageFrame.CanvasSize = UDim2.new(0, 0, 0, 1200) 
+    _G.NewPageFrame.Active = true
+    _G.NewPageFrame.Parent = _G.GPagesContainer
+    
+    _G.FatalityAllPages[pageName] = _G.NewPageFrame
+end
+
+_G.FatalityInitializePageGlobal("Home", true)
+_G.FatalityInitializePageGlobal("Combat", false)
+_G.FatalityInitializePageGlobal("Visuals", false)
+_G.FatalityInitializePageGlobal("HUD", false)
+_G.FatalityInitializePageGlobal("Settings", false)
+
+_G.MainBlur = Instance.new("BlurEffect")
+_G.MainBlur.Name = "FatalityBlur"; _G.MainBlur.Size = 14; _G.MainBlur.Parent = _G.GLighting
+_G.FatalityBlurObj = _G.MainBlur
+
+_G.BackgroundGui = Instance.new("ScreenGui")
+_G.BackgroundGui.Name = "FatalityBackgroundUI"; _G.BackgroundGui.ResetOnSpawn = false; _G.BackgroundGui.IgnoreGuiInset = true; _G.BackgroundGui.Parent = _G.MainScreenGui
+_G.FatalityBackgroundUI = _G.BackgroundGui
+
+_G.DimFrame = Instance.new("Frame", _G.BackgroundGui); _G.DimFrame.Size = UDim2.new(1, 0, 1, 0); _G.DimFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0); _G.DimFrame.BackgroundTransparency = 0.6
+_G.FatalityDimObj = _G.DimFrame
+
+_G.RainContainer = Instance.new("Frame", _G.BackgroundGui); _G.RainContainer.Name = "RainContainer"; _G.RainContainer.Size = UDim2.new(1, 0, 1, 0); _G.RainContainer.BackgroundTransparency = 1
+_G.FatalityRainContainer = _G.RainContainer
+
+_G.FatalityActiveRainDropsTable = {}
+for i = 1, 200 do
+    _G.DropItem = Instance.new("Frame", _G.RainContainer); _G.DropItem.BorderSizePixel = 0; _G.DropItem.Size = UDim2.new(0, 2, 0, 24); _G.DropItem.BackgroundColor3 = Color3.fromRGB(235, 25, 25); _G.DropItem.Rotation = -2
+    table.insert(_G.FatalityActiveRainDropsTable, {Object = _G.DropItem, Speed = 0.024, X = math.random(0, 10000) / 10000, Y = math.random(0, 10000) / 10000})
+end
+
+if _G.RainConnection then pcall(function() _G.RainConnection:Disconnect() end) end
+_G.RainConnection = _G.GRunService.RenderStepped:Connect(function(deltaTime)
+    if deltaTime > 0.05 then deltaTime = 0.05 end
+    for _, drop in ipairs(_G.FatalityActiveRainDropsTable) do
+        drop.Y = drop.Y + (drop.Speed * deltaTime * 5.5); drop.X = drop.X + (drop.Speed * 0.04 * deltaTime * 5.5)
+        if drop.Y > 1.05 then drop.Y = -0.05; drop.X = math.random(0, 10000) / 10000 end
+        drop.Object.Position = UDim2.fromScale(drop.X, drop.Y)
+    end
+end)
+
+_G.NavLogo = Instance.new("TextButton", _G.Sidebar); _G.NavLogo.Name = "NavLogo"; _G.NavLogo.Size = UDim2.new(1, 0, 0, 110); _G.NavLogo.Position = UDim2.new(0, 0, 0, 15); _G.NavLogo.Text = "F"; _G.NavLogo.Font = Enum.Font.Bodoni; _G.NavLogo.TextSize = 125; _G.NavLogo.TextColor3 = Color3.fromRGB(235, 20, 20); _G.NavLogo.BackgroundTransparency = 1
+
+_G.FatalityCreateNavigationTabGlobal = function(tabText, posY, pageKey)
+    local TabButton = Instance.new("TextButton", _G.Sidebar)
+    TabButton.Size = UDim2.new(0, 150, 0, 45)
+    TabButton.Position = UDim2.new(0.5, -75, 0, posY)
+    TabButton.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+    TabButton.BackgroundTransparency = 0.5
+    TabButton.Text = tabText
+    TabButton.TextColor3 = Color3.fromRGB(130, 130, 130)
+    TabButton.Font = Enum.Font.GothamBold
+    TabButton.TextSize = 14
+    
+    local TabCorner = Instance.new("UICorner", TabButton)
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    
+    if pageKey == "Home" then 
+        _G.FatalityActiveTab = TabButton
+        TabButton.TextColor3 = Color3.fromRGB(245, 25, 25)
+        TabButton.BackgroundColor3 = Color3.fromRGB(28, 6, 6) 
+    end
+    
+    TabButton.MouseButton1Click:Connect(function()
+        if _G.FatalityActiveTab then 
+            _G.FatalityActiveTab.TextColor3 = Color3.fromRGB(130, 130, 130)
+            _G.FatalityActiveTab.BackgroundColor3 = Color3.fromRGB(10, 10, 10) 
+        end
+        _G.FatalityActiveTab = TabButton
+        TabButton.TextColor3 = Color3.fromRGB(245, 25, 25)
+        TabButton.BackgroundColor3 = Color3.fromRGB(28, 6, 6)
+        for name, frame in pairs(_G.FatalityAllPages) do 
+            frame.Visible = (name == pageKey) 
+        end
+    end)
+end
+
+_G.FatalityCreateNavigationTabGlobal("Home", 165, "Home")
+_G.FatalityCreateNavigationTabGlobal("Combat", 220, "Combat")
+_G.FatalityCreateNavigationTabGlobal("Visuals", 275, "Visuals")
+_G.FatalityCreateNavigationTabGlobal("HUD", 330, "HUD")
+_G.FatalityCreateNavigationTabGlobal("Settings", 385, "Settings")
+
+print("Часть 1А (Полный фикс опечатки Parent) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 1Б: ХОТКЕИ И УПРАВЛЕНИЕ КУРСОРOM МЫШИ [ФИКС МЫШКИ]
+-- =============================================================================
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local CoreGuiContainer = (gethui and gethui()) or game:GetService("CoreGui")
+
+-- [ПАТЧ МЫШКИ: УПРАВЛЕНИЕ КУРСОРOM СТРОГО КОГДА UI АКТИВЕН]
+RunService.RenderStepped:Connect(function()
+    local activeScreen = CoreGuiContainer:FindFirstChild("FatalityCheatMenuUI")
+    
+    -- Проверяем активность самого ScreenGui
+    if activeScreen and activeScreen.Enabled then
+        local mainPanel = activeScreen:FindFirstChild("MainPanel")
+        if mainPanel and mainPanel.Visible then
+            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            UserInputService.MouseIconEnabled = true
+        end
+    end
+end)
+
+-- [ОБРАБОТКА НАЖАТИЙ КЛАВИШ (DELETE И END)]
+UserInputService.InputBegan:Connect(function(input, processed)
+    -- Если игрок пишет в чат — софт полностью игнорирует нажатия клавиш
+    if UserInputService:GetFocusedTextBox() then 
+        return 
+    end
+    
+    -- БИНД: DELETE (ПОЛНЫЙ СКРЫВАЛЬЩИК ИНТЕРФЕЙСА)
+    if input.KeyCode == Enum.KeyCode.Delete then 
+        local activeScreen = CoreGuiContainer:FindFirstChild("FatalityCheatMenuUI")
+        local actualMainPanel = activeScreen and activeScreen:FindFirstChild("MainPanel")
+        
+        if activeScreen and actualMainPanel then
+            -- Меняем состояние видимости главной панели и ВСЕГО ScreenGui
+            local nextState = not activeScreen.Enabled
+            
+            activeScreen.Enabled = nextState
+            actualMainPanel.Visible = nextState
+            _G.ByPassOpened = nextState
+            
+            -- ФИКС ЗАВИСАНИЯ: Возвращаем мышь в стандартное управление игрой (без жесткого лока по центру)
+            if not nextState then
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
+            
+            -- Синхронизируем фон, блур и дождь с панелью
+            local bgUI = activeScreen:FindFirstChild("FatalityBackgroundUI")
+            if bgUI then 
+                bgUI.Enabled = nextState 
+                local rain = bgUI:FindFirstChild("RainContainer")
+                if rain then 
+                    rain.Visible = nextState 
+                end
+            end 
+            
+            -- Включаем/выключаем размытие заднего фона
+            if _G.FatalityBlurObj then 
+                _G.FatalityBlurObj.Enabled = nextState 
+            end 
+            
+            -- Плавное изменение прозрачности затемнения фона
+            if _G.FatalityDimObj then 
+                _G.FatalityDimObj.BackgroundTransparency = nextState and 0.6 or 1 
+            end 
+        end
+    end
+    
+    -- БИНД: END (Выгрузка)
+    if input.KeyCode == Enum.KeyCode.End then 
+        _G.FatalityChamsLoopActive = false 
+        
+        -- Снос всех активных потоков рендеринга софта
+        if _G.RainConnection then pcall(function() _G.RainConnection:Disconnect() end) end 
+        if _G.Fatality7Conn then pcall(function() _G.Fatality7Conn:Disconnect() end) end 
+        if _G.FatalityCamConnection then pcall(function() _G.FatalityCamConnection:Disconnect() end) end 
+        if _G.FatalityDynamicBoxEspConn then pcall(function() _G.FatalityDynamicBoxEspConn:Disconnect() end) end
+        if _G.FatalityHudConnection then pcall(function() _G.FatalityHudConnection:Disconnect() end) end 
+        
+        -- Вызов очистки прицела, ватермарки, Target HUD и цифр урона
+        if _G.clearAllDrawingObjectsPrivate then pcall(_G.clearAllDrawingObjectsPrivate) end
+        
+        -- Вызов очистки 2D коробок из Части 5
+        if _G.clearAllBoxEspObjectsPrivate then pcall(_G.clearAllBoxEspObjectsPrivate) end
+        
+        -- Стираем круг FOV аимбота
+        if _G.FatalityDrawingCircle then 
+            pcall(function() 
+                _G.FatalityDrawingCircle.Visible = false 
+                _G.FatalityDrawingCircle:Remove() 
+            end) 
+        end 
+        
+        -- Снос блура
+        pcall(function()
+            local blur = Lighting:FindFirstChild("FatalityBlur")
+            if blur then blur:Destroy() end
+            if _G.FatalityBlurObj then _G.FatalityBlurObj:Destroy() end
+        end)
+        
+        -- Возврат тумана и камеры к дефолту сервера
+        Lighting.FogColor = _G.defFogColor or Color3.fromRGB(128, 128, 128)
+        Lighting.FogStart = _G.defFogStart or 0
+        Lighting.FogEnd = _G.defFogEnd or 100000
+        workspace.CurrentCamera.FieldOfView = 70
+        
+        -- Возвращаем управление мыши в дефолт плейса
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        
+        -- Удаление ScreenGui интерфейса
+        local endUI = CoreGuiContainer:FindFirstChild("FatalityCheatMenuUI")
+        if endUI then pcall(function() endUI:Destroy() end) end 
+        
+        print("Софт успешно и полностью выгружен!")
+    end
+end)
+
+print("Часть 1Б (Фикс мышки при закрытии) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 2А: СТАБИЛЬНЫЕ СТАТИЧНЫЕ КОНСТРУКТОРЫ КАРТОЧЕК И ЭЛЕМЕНТОВ
+-- =============================================================================
+
+local UserInputService = game:GetService("UserInputService")
+
+if not _G.cfg then
+    _G.cfg = {
+        en = false, tc = false, wc = false, df = false, fv = 100, sm = 2, tr = false,
+        esp = false, espT = false, espF = 0.4, espO = 0.2,
+        fov = 70, mul = 1.0,
+        fog = false, fogS = 0, fogE = 1000,
+        crosshair = false, crossSize = 10, crossGap = 4, crossThickness = 2, hudInfo = false,
+        box2d = false, cornerBox = false, boxFill = false, boxGradient = false,
+        drawNames = false, drawHealth = false, drawTracers = false, targetHud = false,
+        speedEnabled = false, speedMultiplier = 2.4, aaEnabled = false, aaSpeed = 25, aaOnlyAir = false, infStamina = false
+    }
+end
+
+-- [ЧИСТЫЙ КОНСТРУКТОР ПЛАШЕК — РАБОТАЕТ В СВЯЗКЕ С ОБЩИМ СКРОЛЛОМ СТРАНИЦЫ]
+_G.cBubble = function(parentPage, size, position, titleText)
+    local BubbleFrame = Instance.new("Frame")
+    BubbleFrame.Name = titleText:gsub(" ", "") .. "Bubble"
+    BubbleFrame.Size = size
+    BubbleFrame.Position = position
+    BubbleFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+    BubbleFrame.BackgroundTransparency = 0.3
+    BubbleFrame.ClipsDescendants = true -- Маскируем элементы, чтобы не выбивались наружу
+    BubbleFrame.Parent = parentPage
+    
+    local Corner = Instance.new("UICorner", BubbleFrame); Corner.CornerRadius = UDim.new(0, 16)
+    local Stroke = Instance.new("UIStroke", BubbleFrame); Stroke.Color = Color3.fromRGB(38, 38, 38)
+    
+    local Header = Instance.new("TextLabel", BubbleFrame)
+    Header.Size = UDim2.new(1, -30, 0, 35)
+    Header.Position = UDim2.new(0, 15, 0, 8)
+    Header.Text = titleText:upper()
+    Header.TextColor3 = Color3.fromRGB(235, 20, 20)
+    Header.Font = Enum.Font.GothamBold
+    Header.TextSize = 12
+    Header.TextXAlignment = Enum.TextXAlignment.Left
+    Header.BackgroundTransparency = 1
+    
+    local Container = Instance.new("Frame", BubbleFrame)
+    Container.Name = "Container"
+    Container.Size = UDim2.new(1, -30, 1, -50)
+    Container.Position = UDim2.new(0, 15, 0, 45)
+    Container.BackgroundTransparency = 1
+    Container.ZIndex = 21
+    
+    local ListLayout = Instance.new("UIListLayout", Container)
+    ListLayout.Padding = UDim.new(0, 6)
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    return Container
+end
+
+-- [КОНСТРУКТОР ЧЕКБОКСОВ]
+_G.cToggle = function(parentContainer, text, defaultValue, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Name = text .. "ToggleFrame"
+    Frame.Size = UDim2.new(1, 0, 0, 24) 
+    Frame.BackgroundTransparency = 1
+    Frame.Parent = parentContainer
+    
+    local Button = Instance.new("TextButton", Frame)
+    Button.Size = UDim2.new(0, 16, 0, 16)
+    Button.Position = UDim2.new(0, 0, 0.5, -8)
+    Button.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    Button.Text = ""
+    local Stroke = Instance.new("UIStroke", Button); Stroke.Color = Color3.fromRGB(45, 45, 50)
+    local Corner = Instance.new("UICorner", Button); Corner.CornerRadius = UDim.new(0, 4)
+    
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, -26, 1, 0); Label.Position = UDim2.new(0, 26, 0, 0); Label.BackgroundTransparency = 1; Label.Text = text; Label.TextColor3 = Color3.fromRGB(160, 160, 160); Label.Font = Enum.Font.GothamSemibold; Label.TextSize = 12; Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local isToggled = defaultValue
+    local function updateVisuals()
+        if isToggled then Button.BackgroundColor3 = Color3.fromRGB(245, 20, 20); Stroke.Color = Color3.fromRGB(245, 20, 20); Label.TextColor3 = Color3.fromRGB(245, 20, 20)
+        else Button.BackgroundColor3 = Color3.fromRGB(12, 12, 12); Stroke.Color = Color3.fromRGB(45, 45, 50); Label.TextColor3 = Color3.fromRGB(160, 160, 160) end
+    end
+    
+    updateVisuals()
+    Button.MouseButton1Click:Connect(function() isToggled = not isToggled; updateVisuals(); pcall(callback, isToggled) end)
+end
+
+-- [КОНСТРУКТОР СЛАЙДЕРОВ]
+_G.cSlider = function(parentContainer, text, minVal, maxVal, defaultVal, callback)
+    local Frame = Instance.new("Frame")
+    Frame.Name = text .. "SliderFrame"; Frame.Size = UDim2.new(1, 0, 0, 38); Frame.BackgroundTransparency = 1; Frame.Parent = parentContainer
+    
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, 0, 0, 16); Label.BackgroundTransparency = 1; Label.Text = text .. ": " .. tostring(defaultVal); Label.TextColor3 = Color3.fromRGB(160, 160, 160); Label.Font = Enum.Font.GothamSemibold; Label.TextSize = 11; Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local SliderBG = Instance.new("TextButton", Frame)
+    SliderBG.Size = UDim2.new(1, 0, 0, 5); SliderBG.Position = UDim2.new(0, 0, 0, 22); SliderBG.BackgroundColor3 = Color3.fromRGB(20, 20, 25); SliderBG.Text = ""
+    local CornerBG = Instance.new("UICorner", SliderBG); CornerBG.CornerRadius = UDim.new(0, 3)
+    
+    local SliderFill = Instance.new("Frame", SliderBG)
+    SliderFill.Size = UDim2.new((defaultVal - minVal) / (maxVal - minVal), 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(245, 20, 20); SliderFill.BorderSizePixel = 0
+    local CornerFill = Instance.new("UICorner", SliderFill); CornerFill.CornerRadius = UDim.new(0, 3)
+    
+    local isDragging = false
+    local function updateSlider(input)
+        if SliderBG.AbsoluteSize.X == 0 then return end 
+        local percent = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
+        SliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        local value = math.floor((minVal + (percent * (maxVal - minVal))) * 100 + 0.5) / 100
+        Label.Text = text .. ": " .. tostring(value)
+        pcall(callback, value)
+    end
+    
+    SliderBG.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = true; updateSlider(input) end end)
+    UserInputService.InputChanged:Connect(function(input) if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateSlider(input) end end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end end)
+end
+
+print("Часть 2А (Статичные конструкторы) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 2Б: ВКЛАДКА HOME И ИСПРАВЛЕННЫЙ АИМБОТ
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+local HomePage = _G.FatalityAllPages["Home"]
+local CombatPage = _G.FatalityAllPages["Combat"]
+
+-- [ОТРИСОВКА КАРТОЧЕК НА СТРАНИЦЕ HOME — ИСПРАВЛЕНО УТЕЧКУ СЛОЕВ]
+local function createInfoLine(parentBox, textHtml, posY)
+    local Line = Instance.new("TextLabel")
+    Line.Size = UDim2.new(1, -30, 0, 22)
+    Line.Position = UDim2.new(0, 15, 0, posY)
+    Line.Text = textHtml
+    Line.RichText = true
+    Line.TextColor3 = Color3.fromRGB(230, 230, 230)
+    Line.Font = Enum.Font.GothamSemibold
+    Line.TextSize = 12
+    Line.TextXAlignment = Enum.TextXAlignment.Left
+    Line.BackgroundTransparency = 1
+    Line.Parent = parentBox
+end
+
+local function createHomeBox(size, position, boxTitle)
+    local Box = Instance.new("Frame")
+    Box.Size = size
+    Box.Position = position
+    Box.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+    Box.BackgroundTransparency = 0.3
+    Box.Parent = HomePage
+    
+    Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 16)
+    Instance.new("UIStroke", Box).Color = Color3.fromRGB(38, 38, 38)
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, -30, 0, 35)
+    Title.Position = UDim2.new(0, 15, 0, 8)
+    Title.Text = boxTitle:upper()
+    Title.TextColor3 = Color3.fromRGB(235, 20, 20)
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 12
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
+    Title.Parent = Box
+    
+    return Box
+end
+
+-- Сбор данных о карте
+local placeName, creatorName, createDate = "Prison Life", "Aesthetical", "2014-05-01"
+pcall(function()
+    local info = MarketplaceService:GetProductInfo(game.PlaceId)
+    if info then
+        placeName = info.Name or placeName
+        creatorName = (info.Creator and info.Creator.Name) or creatorName
+        if info.Created then createDate = tostring(info.Created:sub(1, 10)) end
+    end
+end)
+
+local placeBox = createHomeBox(UDim2.new(0, 385, 0, 140), UDim2.new(0, 20, 0, 20), "Place Info")
+createInfoLine(placeBox, "Name: <font color='#ffffff'>" .. placeName .. "</font>", 45)
+createInfoLine(placeBox, "Creator: <font color='#ffffff'>" .. creatorName .. "</font>", 72)
+createInfoLine(placeBox, "Created: <font color='#ffffff'>" .. createDate .. "</font>", 99)
+
+local playerBox = createHomeBox(UDim2.new(0, 385, 0, 150), UDim2.new(0, 20, 0, 175), "Player Info")
+createInfoLine(playerBox, "Nick: <font color='#ff2a2a'>" .. LocalPlayer.Name .. "</font>", 42)
+createInfoLine(playerBox, "Display: <font color='#ffffff'>" .. LocalPlayer.DisplayName .. "</font>", 70)
+createInfoLine(playerBox, "Created: <font color='#ffffff'>" .. LocalPlayer.AccountAge .. " days</font>", 95)
+createInfoLine(playerBox, "Injector: <font color='#ff2a2a'>" .. ((identifyexecutor and identifyexecutor()) or "Xeno") .. "</font>", 120)
+
+local serverBox = createHomeBox(UDim2.new(0, 385, 0, 140), UDim2.new(0, 415, 0, 20), "Server Info")
+createInfoLine(serverBox, "Server ID: <font color='#ffffff'>" .. (game.JobId ~= "" and tostring(game.JobId:sub(1, 12)) or "Studio") .. "...</font>", 55)
+
+local countLabel = Instance.new("TextLabel")
+countLabel.Size = UDim2.new(1, -30, 0, 22)
+countLabel.Position = UDim2.new(0, 15, 0, 85)
+countLabel.RichText = true
+countLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+countLabel.Font = Enum.Font.GothamSemibold
+countLabel.TextSize = 12
+countLabel.TextXAlignment = Enum.TextXAlignment.Left
+countLabel.BackgroundTransparency = 1
+countLabel.Parent = serverBox
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            countLabel.Text = "Players: <font color='#ff2a2a'>" .. #Players:GetPlayers() .. "</font> / " .. Players.MaxPlayers
+        end)
+    end
+end)
+
+local devBox = createHomeBox(UDim2.new(0, 385, 0, 150), UDim2.new(0, 415, 0, 175), "Dev Info")
+createInfoLine(devBox, "Developer: <font color='#ff2a2a'>Spnowhieb</font>", 42)
+createInfoLine(devBox, "Telegram: <font color='#ffffff'>@FatalityVisuals</font>", 72)
+
+-- [ГЕНЕРАЦИЯ МЕНЮ АИМБОТА]
+local AimbotSettings = _G.cBubble(CombatPage, UDim2.new(0, 385, 0, 330), UDim2.new(0, 20, 0, 20), "Aimbot Settings")
+local TriggerSettings = _G.cBubble(CombatPage, UDim2.new(0, 385, 0, 80), UDim2.new(0, 415, 0, 20), "Triggerbot Settings")
+
+_G.cToggle(AimbotSettings, "Enable Mouse Aimbot", false, function(s) _G.cfg.en = s end)
+_G.cToggle(AimbotSettings, "Aim Team Check", false, function(s) _G.cfg.tc = s end)
+_G.cToggle(AimbotSettings, "Aim Wall Check (Visibles Only)", false, function(s) _G.cfg.wc = s end)
+_G.cToggle(AimbotSettings, "Draw FOV Circle", false, function(s) _G.cfg.df = s end)
+_G.cSlider(AimbotSettings, "Aimbot FOV Radius", 30, 600, 100, function(v) _G.cfg.fv = v end)
+_G.cSlider(AimbotSettings, "Mouse Smoothness", 1, 10, 2, function(v) _G.cfg.sm = v end)
+_G.cToggle(TriggerSettings, "Enable Triggerbot (Auto Click)", false, function(s) _G.cfg.tr = s end)
+
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = false
+fovCircle.Thickness = 1.5
+fovCircle.Color = Color3.fromRGB(235, 20, 20)
+fovCircle.Filled = false
+fovCircle.Transparency = 1
+fovCircle.NumSides = 64
+_G.FatalityDrawingCircle = fovCircle
+
+local function checkWallVisibility(headPart)
+    if not _G.cfg.wc then return true end
+    local origin = Camera.CFrame.Position
+    local direction = (headPart.Position - origin).Unit * 1000
+    local ray = Ray.new(origin, direction)
+    local hitPart = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera, workspace.Terrain})
+    return hitPart and hitPart:IsDescendantOf(headPart.Parent) or false
+end
+
+local function findTargetInsideFOV()
+    local target, minDistance = nil, _G.cfg.fv
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                
+                -- ИСПРАВЛЕННЫЙ БАГ НАВОДКИ НА BASEPLATE:
+                -- Если включен Team Check, но игроки находятся в дефолтной нейтральной команде (тесты на пластине) — аимбот НЕ будет их игнорировать!
+                if _G.cfg.tc and player.Team == LocalPlayer.Team and player.Team ~= nil and player.Team.Name ~= "Neutral" then 
+                    continue 
+                end
+                
+                if checkWallVisibility(player.Character.Head) then
+                    local screenPos, isOnScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
+                    if isOnScreen then
+                        local currentDistance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                        if currentDistance < minDistance then
+                            target = player
+                            minDistance = currentDistance
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return target
+end
+
+_G.Fatality7Conn = RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        fovCircle:Remove()
+        if _G.Fatality7Conn then _G.Fatality7Conn:Disconnect() end
+        return
+    end
+    
+    fovCircle.Radius = _G.cfg.fv
+    fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    -- ИСПРАВЛЕННЫЙ БАГ КРУГА: Теперь круг FOV привязан СТРОГО к тумблеру в меню и работает во время игры
+    fovCircle.Visible = _G.cfg.df
+    
+    local targetPlayer = findTargetInsideFOV()
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+        if _G.cfg.en and mousemoverel then
+            local screenPos, _ = Camera:WorldToViewportPoint(targetPlayer.Character.Head.Position)
+            local mouseLoc = UserInputService:GetMouseLocation()
+            mousemoverel((screenPos.X - mouseLoc.X) / _G.cfg.sm, (screenPos.Y - mouseLoc.Y) / _G.cfg.sm)
+        end
+        if _G.cfg.tr and mouse1click and Mouse.Target and Mouse.Target:IsDescendantOf(targetPlayer.Character) then
+            mouse1click()
+        end
+    end
+end)
+
+print("Часть 2Б (Панели и Аимбот) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3А1: ИНТЕРФЕЙС CHAMS, КАМЕРЫ, BLOOD FOG И JUMP CIRCLE
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+
+local VisualsPage = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.blackSky = false
+_G.cfg.jumpCircle = false
+_G.cfg.jumpCircleRadius = 10
+
+local hiddenAtmosphereObjects = {}
+
+local function applyAtmosphereEffects() 
+    if _G.cfg.fog or _G.cfg.blackSky then 
+        for _, object in ipairs(Lighting:GetChildren()) do
+            if object:IsA("Atmosphere") or object:IsA("Sky") or object:IsA("Clouds") then
+                table.insert(hiddenAtmosphereObjects, {Obj = object, OldParent = object.Parent})
+                object.Parent = nil 
+            end
+        end
+    end
+
+    if _G.cfg.fog then 
+        Lighting.FogColor = Color3.fromRGB(235, 20, 20)
+        Lighting.FogStart = _G.cfg.fogS or 0
+        Lighting.FogEnd = _G.cfg.fogE or 1000
+    else 
+        Lighting.FogColor = _G.defFogColor or Color3.fromRGB(128,128,128)
+        Lighting.FogStart = _G.defFogStart or 0
+        Lighting.FogEnd = _G.defFogEnd or 100000 
+    end
+
+    if _G.cfg.blackSky then
+        Lighting.ClockTime = 0 
+        Lighting.Ambient = Color3.fromRGB(30, 30, 30) 
+        Lighting.OutdoorAmbient = Color3.fromRGB(10, 10, 10) 
+        Lighting.Brightness = 0 
+    else
+        Lighting.ClockTime = 14 
+        Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+        Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+        Lighting.Brightness = 1
+    end
+
+    if not _G.cfg.fog and not _G.cfg.blackSky then
+        for _, data in ipairs(hiddenAtmosphereObjects) do
+            if data.Obj then pcall(function() data.Obj.Parent = data.OldParent end) end
+        end
+        hiddenAtmosphereObjects = {}
+    end
+end
+
+if _G.FatalitySkyFreezeConn then pcall(function() _G.FatalitySkyFreezeConn:Disconnect() end) end
+_G.FatalitySkyFreezeConn = game:GetService("RunService").RenderStepped:Connect(function()
+    if _G.cfg and _G.cfg.blackSky then Lighting.ClockTime = 0 end
+end)
+
+local function createStaticBubble(page, size, position, titleText)
+    local B = Instance.new("Frame", page)
+    B.Name = titleText:gsub(" ", "") .. "Bubble"
+    B.Size = size
+    B.Position = position
+    B.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+    B.BackgroundTransparency = 0.3
+    B.ClipsDescendants = true
+    
+    local Corner = Instance.new("UICorner", B)
+    Corner.CornerRadius = UDim.new(0, 16)
+    local Stroke = Instance.new("UIStroke", B)
+    Stroke.Color = Color3.fromRGB(38, 38, 38)
+    
+    local H = Instance.new("TextLabel", B)
+    H.Size = UDim2.new(1, -30, 0, 35)
+    H.Position = UDim2.new(0, 15, 0, 8)
+    H.Text = titleText:upper()
+    H.TextColor3 = Color3.fromRGB(235, 20, 20)
+    H.Font = Enum.Font.GothamBold
+    H.TextSize = 12
+    H.TextXAlignment = Enum.TextXAlignment.Left
+    H.BackgroundTransparency = 1
+    
+    local C = Instance.new("Frame", B)
+    C.Name = "Container"
+    C.Size = UDim2.new(1, -30, 1, -45)
+    C.Position = UDim2.new(0, 15, 0, 40)
+    C.BackgroundTransparency = 1
+    C.ZIndex = 21
+    
+    local ListLayout = Instance.new("UIListLayout", C)
+    ListLayout.Padding = UDim.new(0, 8)
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    return C
+end
+
+-- =============================================================================
+-- [ФИКС СЕТКИ: ИДЕАЛЬНОЕ ПОЗИЦИОНИРОВАНИЕ]
+-- =============================================================================
+-- Левая колонка
+local ChamsContainer = createStaticBubble(VisualsPage, UDim2.new(0, 385, 0, 220), UDim2.new(0, 20, 0, 20), "Chams Settings")
+local CameraContainer = createStaticBubble(VisualsPage, UDim2.new(0, 385, 0, 220), UDim2.new(0, 20, 0, 260), "Camera Settings")
+
+-- Правая нижняя плашка: сдвинули пониже на Y = 380, прямо под ESP Designer Suite
+local FogContainer = createStaticBubble(VisualsPage, UDim2.new(0, 385, 0, 220), UDim2.new(0, 415, 0, 380), "Atmosphere Fog Settings")
+
+_G.FatalityChamsUiContainerRef = ChamsContainer
+
+-- Наполнение карточки Chams
+_G.cToggle(ChamsContainer, "Enable Neon Chams", false, function(state) 
+    _G.cfg.esp = state 
+    if not state then for _, p in ipairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("FatHl") then p.Character.FatHl:Destroy() end end end
+end)
+_G.cToggle(ChamsContainer, "Team Check Colors", false, function(state) _G.cfg.espT = state end)
+_G.cSlider(ChamsContainer, "Chams Body Opacity", 0, 1, 0.4, function(val) _G.cfg.espF = val end)
+_G.cSlider(ChamsContainer, "Chams Outline Opacity", 0, 1, 0.2, function(val) _G.cfg.espO = val end)
+
+-- Наполнение карточки Камеры
+_G.cSlider(CameraContainer, "Camera FOV Changer", 70, 120, 70, function(val) _G.cfg.fov = val end)
+_G.cSlider(CameraContainer, "Aspect Ratio Stretch", 0.1, 1.0, 1.0, function(val) _G.cfg.mul = val end)
+_G.cToggle(CameraContainer, "Enable Red Jump Circle", false, function(state) _G.cfg.jumpCircle = state end)
+_G.cSlider(CameraContainer, "Jump Circle Max Size", 5, 25, 10, function(val) _G.cfg.jumpCircleRadius = val end)
+
+-- Наполнение карточки атмосферы
+_G.cToggle(FogContainer, "Enable Blood Fog", false, function(state) _G.cfg.fog = state applyAtmosphereEffects() end)
+_G.cToggle(FogContainer, "Enable Pure Black Sky", false, function(state) _G.cfg.blackSky = state applyAtmosphereEffects() end)
+_G.cSlider(FogContainer, "Fog Start Distance", 0, 500, 0, function(val) _G.cfg.fogS = val applyAtmosphereEffects() end)
+_G.cSlider(FogContainer, "Fog End Thickness", 100, 3000, 1000, function(val) _G.cfg.fogE = val applyAtmosphereEffects() end)
+
+local oldFogUnload = _G.clearAllBoxEspObjectsPrivate
+_G.clearAllBoxEspObjectsPrivate = function()
+    if oldFogUnload then pcall(oldFogUnload) end
+    if _G.FatalitySkyFreezeConn then pcall(function() _G.FatalitySkyFreezeConn:Disconnect() end) end
+    _G.cfg.fog = false
+    _G.cfg.blackSky = false
+    applyAtmosphereEffects()
+end
+
+print("Часть 3А1 (Левая колонка выровнена) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3А2: ИНТЕРФЕЙС ПАКЕТА ESP DESIGNER SUITE [HITMARKER]
+-- =============================================================================
+
+_G.VisualsPageRefPrivate = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+
+if _G.VisualsPageRefPrivate then
+    _G.OldEspSuiteBubble = _G.VisualsPageRefPrivate:FindFirstChild("ESPDesignerSuiteBubble")
+    if _G.OldEspSuiteBubble then _G.OldEspSuiteBubble:Destroy() end
+end
+
+if not _G.cfgVisualsPro then
+    _G.cfgVisualsPro = {
+        box2d = false, cornerBox = false, boxFill = false, boxGradient = false,
+        drawNames = false, drawHealth = false, drawTracers = false, targetHud = false,
+        drawSkeleton = false, draw3dBox = false, drawTools = false,
+        hitmarkerEnabled = false
+    }
+end
+
+_G.EspDesignerContainer = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 360), UDim2.new(0, 415, 0, 20), "ESP Designer Suite")
+
+_G.cToggle(_G.EspDesignerContainer, "Enable Classic 2D Box ESP", false, function(state) _G.cfgVisualsPro.box2d = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Corner Box Style", false, function(state) _G.cfgVisualsPro.cornerBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Torso Gradient Fill", false, function(state) _G.cfgVisualsPro.boxGradient = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Player Nicknames", false, function(state) _G.cfgVisualsPro.drawNames = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Dynamic HP Bar", false, function(state) _G.cfgVisualsPro.drawHealth = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Equipped Tools", false, function(state) _G.cfgVisualsPro.drawTools = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Screen Hitmarker", false, function(state) _G.cfgVisualsPro.hitmarkerEnabled = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Snap Tracers Lines", false, function(state) _G.cfgVisualsPro.drawTracers = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Skeleton Bones", false, function(state) _G.cfgVisualsPro.drawSkeleton = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render 3D Rig Box", false, function(state) _G.cfgVisualsPro.draw3dBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Target HUD Info", false, function(state) _G.cfgVisualsPro.targetHud = state end)
+
+print("Часть 3А2 успешно перезаписана без ошибок!")
+--=============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3А3: ВЫДЕЛЕННОЕ ОКНО WEAPON CHAMS [ФИКС КНОПОК]
+--=============================================================================
+
+_G.VisualsPageRefPrivate = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+
+if _G.VisualsPageRefPrivate then
+    -- Намертво вырезаем все старые наложившиеся плашки
+    _G.OldEspSuiteBubble = _G.VisualsPageRefPrivate:FindFirstChild("ESPDesignerSuiteBubble")
+    if _G.OldEspSuiteBubble then _G.OldEspSuiteBubble:Destroy() end
+    
+    _G.OldAtmosphereBubble = _G.VisualsPageRefPrivate:FindFirstChild("AtmosphereFogSettingsBubble")
+    if _G.OldAtmosphereBubble then _G.OldAtmosphereBubble:Destroy() end
+    
+    _G.OldWeaponChamsBubble = _G.VisualsPageRefPrivate:FindFirstChild("WeaponChamsSettingsBubble")
+    if _G.OldWeaponChamsBubble then _G.OldWeaponChamsBubble:Destroy() end
+end
+
+if not _G.cfgVisualsPro then
+    _G.cfgVisualsPro = {
+        box2d = false, cornerBox = false, boxFill = false, boxGradient = false,
+        drawNames = false, drawHealth = false, drawTracers = false, targetHud = false,
+        drawSkeleton = false, draw3dBox = false, drawTools = false, hitmarkerEnabled = false,
+        weaponChamsEnabled = false, weaponChamsOpacity = 0.2
+    }
+end
+
+-- [1. ОКНО ESP]: ВЕРНУЛИ В ДЕФОЛТНУЮ ВЫСОТУ 340 (ВСЕ КНОПКИ НА ЭКРАНЕ)
+_G.EspDesignerContainer = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 340), UDim2.new(0, 415, 0, 20), "ESP Designer Suite")
+
+_G.cToggle(_G.EspDesignerContainer, "Enable Classic 2D Box ESP", false, function(state) _G.cfgVisualsPro.box2d = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Corner Box Style", false, function(state) _G.cfgVisualsPro.cornerBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Torso Gradient Fill", false, function(state) _G.cfgVisualsPro.boxGradient = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Player Nicknames", false, function(state) _G.cfgVisualsPro.drawNames = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Dynamic HP Bar", false, function(state) _G.cfgVisualsPro.drawHealth = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Equipped Tools", false, function(state) _G.cfgVisualsPro.drawTools = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Screen Hitmarker", false, function(state) _G.cfgVisualsPro.hitmarkerEnabled = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Snap Tracers Lines", false, function(state) _G.cfgVisualsPro.drawTracers = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Skeleton Bones", false, function(state) _G.cfgVisualsPro.drawSkeleton = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render 3D Rig Box", false, function(state) _G.cfgVisualsPro.draw3dBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Target HUD Info", false, function(state) _G.cfgVisualsPro.targetHud = state end)
+
+-- [2. НОВОЕ ОДЕЛЬНОЕ ОКНО WEAPON CHAMS SUITE]
+_G.WeaponChamsBox = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 140), UDim2.new(0, 415, 0, 380), "Weapon Chams Settings")
+
+_G.cToggle(_G.WeaponChamsBox, "Enable Neon Weapon Chams", false, function(state) 
+    _G.cfgVisualsPro.weaponChamsEnabled = state 
+end)
+_G.cSlider(_G.WeaponChamsBox, "Chams Transperency Opacity", 0.0, 1.0, 0.2, function(val)
+    _G.cfgVisualsPro.weaponChamsOpacity = val
+end)
+
+-- [3. ОКНО АТМОСФЕРЫ]: СМЕСТИЛИ В САМЫЙ НИЗ НА ПОЗИЦИЮ Y = 540 под размер фрейма меню
+_G.AtmosphereBox = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 185), UDim2.new(0, 415, 0, 540), "Atmosphere Fog Settings")
+
+_G.cToggle(_G.AtmosphereBox, "Enable Blood Fog", false, function(state) if _G.FatalityToggleBloodFogPrivate then _G.FatalityToggleBloodFogPrivate(state) end end)
+_G.cToggle(_G.AtmosphereBox, "Enable Pure Black Sky", false, function(state) if _G.FatalityToggleBlackSkyPrivate then _G.FatalityToggleBlackSkyPrivate(state) end end)
+_G.cSlider(_G.AtmosphereBox, "Fog Start Distance", 0, 500, 0, function(val) pcall(function() game:GetService("Lighting").FogStart = val end) end)
+_G.cSlider(_G.AtmosphereBox, "Fog End Thickness", 100, 5000, 1000, function(val) pcall(function() game:GetService("Lighting").FogEnd = val end) end)
+
+print("Часть 3А3 (Выделенное окно Чамсов Оружия) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3А4: ИНТЕРФЕЙС УПРАВЛЕНИЯ LEGIT WORLD ESP [POSITION FIX]
+-- =============================================================================
+
+local VisualsPage = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+
+if not _G.cfgVisualsPro then _G.cfgVisualsPro = {} end
+_G.cfgVisualsPro.partEspEnabled = false   
+_G.cfgVisualsPro.partEspThickness = 0.015 
+_G.cfgVisualsPro.partEspDistance = 15     
+
+-- Вырезаем старые наложившиеся версии
+if VisualsPage then
+    local oldBubble = VisualsPage:FindFirstChild("3DPartOverlaySuiteBubble") or VisualsPage:FindFirstChild("PartOutlinesESPBubble") or VisualsPage:FindFirstChild("LegitWorldESPSuiteBubble")
+    if oldBubble then oldBubble:Destroy() end
+end
+
+-- [ФИКС ПОЗИЦИИ]: Сдвинули плашку на координату Y = 500, полностью убрав наложение
+local PartEspBox = _G.cBubble(VisualsPage, UDim2.new(0, 385, 0, 180), UDim2.new(0, 20, 0, 500), "Legit World ESP Suite")
+
+-- Наполнение элементами управления
+_G.cToggle(PartEspBox, "Enable Legit World ESP", false, function(state) 
+    _G.cfgVisualsPro.partEspEnabled = state 
+end)
+
+_G.cSlider(PartEspBox, "Line Thickness", 0.005, 0.05, 0.015, function(value) 
+    _G.cfgVisualsPro.partEspThickness = value 
+end)
+
+_G.cSlider(PartEspBox, "Max Scan Distance", 1, 30, 15, function(value) 
+    _G.cfgVisualsPro.partEspDistance = value 
+end)
+
+print("Часть 3А4 (Позиция Legit World ESP исправлена!) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3А5: ИНТЕРФЕЙС УПРАВЛЕНИЯ 3D MOTION TRAIL
+-- =============================================================================
+
+local VisualsPage = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+
+-- Инициализация настроек шлейфа в общем конфиге чита
+if not _G.cfgVisualsPro then _G.cfgVisualsPro = {} end
+_G.cfgVisualsPro.trailEnabled = false     -- Флаг включения шлейфа
+_G.cfgVisualsPro.trailLifetime = 0.5     -- Время жизни шлейфа в секундах (дефолт)
+_G.cfgVisualsPro.trailOpacity = 0.4      -- Прозрачность шлейфа (дефолт)
+
+-- Вырезаем старые наложившиеся версии, если они были в памяти
+if VisualsPage then
+    local oldBubble = VisualsPage:FindFirstChild("3DMotionTrailSuiteBubble") or VisualsPage:FindFirstChild("MotionTrailBubble")
+    if oldBubble then oldBubble:Destroy() end
+end
+
+-- [ГЕНЕРАЦИЯ КАРТОЧКИ СТРОГО ПОД WORLD ESP (Y = 700)]
+local TrailBox = _G.cBubble(VisualsPage, UDim2.new(0, 385, 0, 180), UDim2.new(0, 20, 0, 700), "3D Motion Trail Suite")
+
+-- Наполнение чекбоксом и слайдерами
+_G.cToggle(TrailBox, "Enable 3D Motion Trail", false, function(state) 
+    _G.cfgVisualsPro.trailEnabled = state 
+end)
+
+_G.cSlider(TrailBox, "Trail Lifetime (Sec)", 0.1, 2.0, 0.5, function(value) 
+    _G.cfgVisualsPro.trailLifetime = value 
+end)
+
+_G.cSlider(TrailBox, "Trail Transparency Opacity", 0.1, 1.0, 0.4, function(value) 
+    _G.cfgVisualsPro.trailOpacity = value 
+end)
+
+print("Часть 3А5 (Интерфейс 3D Motion Trail) успешно загружена!")
+-- =============================================================================
+-- FATALITY COMBAT — ЧАСТЬ 3Б: СИММЕТРИЧНЫЙ ИНТЕРФЕЙС УПРАВЛЕНИЯ SILENT AIM
+-- =============================================================================
+
+_G.CombatPageRefPrivate = _G.FatalityAllPages["Combat"] or _G.MainPagesContainer
+
+-- Инициализируем настройки Сайлента в глобальный конфиг чита
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.silentEn = false
+_G.cfg.silentTeam = false
+_G.cfg.silentWall = false
+_G.cfg.silentPart = "HumanoidRootPart"
+_G.cfg.silentMethodIndex = 1
+_G.FatalitySilentMethodsNames = {"Mouse.Hit/Target Bypass"}
+_G.cfg.silentChance = 100
+_G.cfg.silentFov = 130
+_G.cfg.silentDrawFov = false
+_G.cfg.silentShowTarget = false
+_G.cfg.silentPredict = false
+_G.cfg.silentPredictAmt = 0.165
+_G.cfg.silentTriggerbot = false
+
+-- Очистка дубликатов плашки при перезапуске
+if _G.CombatPageRefPrivate then
+    _G.OldSilentBubble = _G.CombatPageRefPrivate:FindFirstChild("SilentAimSuiteBubble")
+    if _G.OldSilentBubble then _G.OldSilentBubble:Destroy() end
+end
+
+-- Сажаем Сайлент Аим строго под обычным аимботом на позицию X=20, Y=320
+_G.SilentAimBox = _G.cBubble(_G.CombatPageRefPrivate, UDim2.new(0, 385, 0, 440), UDim2.new(0, 20, 0, 320), "Silent Aim Suite")
+
+-- Наполнение чекбоксами и ползунками из Части 2А
+_G.cToggle(_G.SilentAimBox, "Enable Silent Aim", false, function(state) _G.cfg.silentEn = state end)
+_G.cToggle(_G.SilentAimBox, "Team Check (Anti-Police)", false, function(state) _G.cfg.silentTeam = state end)
+_G.cToggle(_G.SilentAimBox, "Visible Check (Wall)", false, function(state) _G.cfg.silentWall = state end)
+_G.cToggle(_G.SilentAimBox, "Show Silent Target Box", false, function(state) _G.cfg.silentShowTarget = state end)
+_G.cToggle(_G.SilentAimBox, "Render FOV Circle Radius", false, function(state) _G.cfg.silentDrawFov = state end)
+_G.cToggle(_G.SilentAimBox, "Enable Aim Motion Prediction", false, function(state) _G.cfg.silentPredict = state end)
+_G.cToggle(_G.SilentAimBox, "Enable Silent Triggerbot", false, function(state) _G.cfg.silentTriggerbot = state end)
+
+_G.cSlider(_G.SilentAimBox, "Silent Aim FOV Radius", 10, 400, 130, function(val) _G.cfg.silentFov = val end)
+_G.cSlider(_G.SilentAimBox, "Hit Chance Percentage", 1, 100, 100, function(val) _G.cfg.silentChance = val end)
+_G.cSlider(_G.SilentAimBox, "Prediction Velocity Amount", 0.05, 0.5, 0.165, function(val) _G.cfg.silentPredictAmt = val end)
+
+-- КНОПКА: Выбор хитбокса (Голова / Торс / Рандом)
+_G.PartFrame = Instance.new("Frame")
+_G.PartFrame.Name = "SilentPartFrame"; _G.PartFrame.Size = UDim2.new(1, 0, 0, 24); _G.PartFrame.BackgroundTransparency = 1; _G.PartFrame.Parent = _G.SilentAimBox
+_G.PartLabel = Instance.new("TextLabel", _G.PartFrame)
+_G.PartLabel.Size = UDim2.new(0, 120, 1, 0); _G.PartLabel.BackgroundTransparency = 1; _G.PartLabel.Text = "Target Bone Part:"; _G.PartLabel.TextColor3 = Color3.fromRGB(150, 160, 160); _G.PartLabel.Font = Enum.Font.GothamSemibold; _G.PartLabel.TextSize = 12; _G.PartLabel.TextXAlignment = Enum.TextXAlignment.Left
+_G.PartButton = Instance.new("TextButton", _G.PartFrame)
+_G.PartButton.Size = UDim2.new(1, -130, 1, 0); _G.PartButton.Position = UDim2.new(0, 120, 0, 0); _G.PartButton.BackgroundColor3 = Color3.fromRGB(14, 14, 16); _G.PartButton.Text = "HumanoidRootPart"; _G.PartButton.TextColor3 = Color3.fromRGB(245, 20, 20); _G.PartButton.Font = Enum.Font.GothamBold; _G.PartButton.TextSize = 11
+_G.PartStroke = Instance.new("UIStroke", _G.PartButton); _G.PartStroke.Color = Color3.fromRGB(45, 45, 50)
+_G.PartCorner = Instance.new("UICorner", _G.PartButton); _G.PartCorner.CornerRadius = UDim.new(0, 6)
+
+_G.PartButton.MouseButton1Click:Connect(function()
+    if _G.cfg.silentPart == "HumanoidRootPart" then _G.cfg.silentPart = "Head"; _G.PartButton.Text = "HEAD (Bone)"
+    elseif _G.cfg.silentPart == "Head" then _G.cfg.silentPart = "Random"; _G.PartButton.Text = "RANDOM (HvH Mix)"
+    else _G.cfg.silentPart = "HumanoidRootPart"; _G.PartButton.Text = "TORSO (Root)" end
+end)
+
+print("Часть 3Б (Интерфейс Сайлента) успешно загружена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 3В: МЕНЕДЖЕР КОНФИГОВ И ЖИВОЙ СПИСОК [GRAPHICS FIX]
+--=============================================================================
+
+_G.SettingsPageRefPrivate = _G.FatalityAllPages["Settings"] or _G.MainPagesContainer
+_G.FatalityFolderFolderName = "FatalityConfigs_PrisonLife"
+_G.FatalityCurrentActivePresetName = "default_hvh"
+
+if makefolder and not isfolder(_G.FatalityFolderFolderName) then
+    makefolder(_G.FatalityFolderFolderName)
+end
+
+if _G.SettingsPageRefPrivate then
+    _G.OldConfigBubble = _G.SettingsPageRefPrivate:FindFirstChild("ConfigManagerBubble")
+    if _G.OldConfigBubble then _G.OldConfigBubble:Destroy() end
+    _G.OldListBubble = _G.SettingsPageRefPrivate:FindFirstChild("ConfigListBubble")
+    if _G.OldListBubble then _G.OldListBubble:Destroy() end
+end
+
+_G.ConfigContainer = _G.cBubble(_G.SettingsPageRefPrivate, UDim2.new(0, 385, 0, 240), UDim2.new(0, 20, 0, 20), "Config Manager Suite")
+_G.ConfigListContainer = _G.cBubble(_G.SettingsPageRefPrivate, UDim2.new(0, 385, 0, 400), UDim2.new(0, 420, 0, 20), "Available Config Profiles")
+
+_G.ListScrollFrame = Instance.new("ScrollingFrame")
+_G.ListScrollFrame.Size = UDim2.new(1, 0, 1, -10)
+_G.ListScrollFrame.BackgroundTransparency = 1
+_G.ListScrollFrame.ScrollBarThickness = 2
+_G.ListScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+_G.ListScrollFrame.Parent = _G.ConfigListContainer
+
+_G.ListLayout = Instance.new("UIListLayout", _G.ListScrollFrame)
+_G.ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+_G.ListLayout.Padding = UDim.new(0, 6)
+
+_G.InputFrame = Instance.new("Frame")
+_G.InputFrame.Size = UDim2.new(1, 0, 0, 45); _G.InputFrame.BackgroundTransparency = 1; _G.InputFrame.Parent = _G.ConfigContainer
+_G.InputLabel = Instance.new("TextLabel", _G.InputFrame)
+_G.InputLabel.Size = UDim2.new(1, 0, 0, 16); _G.InputLabel.BackgroundTransparency = 1; _G.InputLabel.Text = "Configuration Preset File Name:"; _G.InputLabel.TextColor3 = Color3.fromRGB(140, 140, 145); _G.InputLabel.Font = Enum.Font.GothamSemibold; _G.InputLabel.TextSize = 11; _G.InputLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+_G.TextBoxObj = Instance.new("TextBox", _G.InputFrame)
+_G.TextBoxObj.Size = UDim2.new(1, 0, 0, 24); _G.TextBoxObj.Position = UDim2.new(0, 0, 0, 20); _G.TextBoxObj.BackgroundColor3 = Color3.fromRGB(14, 14, 16); _G.TextBoxObj.Text = "default_hvh"; _G.TextBoxObj.TextColor3 = Color3.fromRGB(255, 255, 255); _G.TextBoxObj.PlaceholderText = "Enter configuration name..."; _G.TextBoxObj.Font = Enum.Font.GothamBold; _G.TextBoxObj.TextSize = 12; _G.TextBoxObj.ClearTextOnFocus = false
+_G.BoxStroke = Instance.new("UIStroke", _G.TextBoxObj); _G.BoxStroke.Color = Color3.fromRGB(45, 45, 50)
+_G.BoxCorner = Instance.new("UICorner", _G.TextBoxObj); _G.BoxCorner.CornerRadius = UDim.new(0, 6)
+
+_G.TextBoxObj.FocusLost:Connect(function()
+    if _G.TextBoxObj.Text ~= "" then
+        _G.FatalityCurrentActivePresetName = _G.TextBoxObj.Text:gsub("[^%w_%-]", "")
+        _G.TextBoxObj.Text = _G.FatalityCurrentActivePresetName
+    else
+        _G.TextBoxObj.Text = "default_hvh"
+        _G.FatalityCurrentActivePresetName = "default_hvh"
+    end
+end)
+
+_G.FatalityRefreshConfigListVisuals = function()
+    for _, child in ipairs(_G.ListScrollFrame:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    if not listfiles or not isfolder(_G.FatalityFolderFolderName) then return end
+    _G.AllDetectedFilesList = listfiles(_G.FatalityFolderFolderName)
+    _G.RowIndexCounter = 0
+    for _, filepath in ipairs(_G.AllDetectedFilesList) do
+        if filepath:sub(-5) == ".json" then
+            _G.RowIndexCounter = _G.RowIndexCounter + 1
+            _G.CleanFileNameStr = filepath:match("([^/\\]+)%.json$") or filepath
+            _G.RowFrame = Instance.new("Frame")
+            _G.RowFrame.Size = UDim2.new(1, -6, 0, 30); _G.RowFrame.BackgroundTransparency = 1; _G.RowFrame.Parent = _G.ListScrollFrame
+            _G.RowBtn = Instance.new("TextButton", _G.RowFrame)
+            _G.RowBtn.Size = UDim2.new(1, 0, 1, 0); _G.RowBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 16); _G.RowBtn.Text = "   " .. _G.CleanFileNameStr:lower(); _G.RowBtn.TextColor3 = Color3.fromRGB(180, 180, 185); _G.RowBtn.Font = Enum.Font.GothamBold; _G.RowBtn.TextSize = 12; _G.RowBtn.TextXAlignment = Enum.TextXAlignment.Left
+            _G.RowStroke = Instance.new("UIStroke", _G.RowBtn); _G.RowStroke.Color = Color3.fromRGB(35, 35, 40)
+            _G.RowCorner = Instance.new("UICorner", _G.RowBtn); _G.RowCorner.CornerRadius = UDim.new(0, 6)
+            _G.RowBtn.MouseButton1Click:Connect(function()
+                _G.FatalityCurrentActivePresetName = _G.CleanFileNameStr
+                _G.TextBoxObj.Text = _G.CleanFileNameStr
+            end)
+        end
+    end
+    _G.ListScrollFrame.CanvasSize = UDim2.new(0, 0, 0, _G.RowIndexCounter * 36)
+end
+
+_G.FatalityCreateConfigButtonHelper = function(text, color, callback)
+    _G.ActionFrame = Instance.new("Frame")
+    _G.ActionFrame.Size = UDim2.new(1, 0, 0, 35); _G.ActionFrame.BackgroundTransparency = 1; _G.ActionFrame.Parent = _G.ConfigContainer
+    _G.BtnObj = Instance.new("TextButton", _G.ActionFrame)
+    _G.BtnObj.Size = UDim2.new(1, 0, 1, 0); _G.BtnObj.BackgroundColor3 = Color3.fromRGB(12, 12, 14); _G.BtnObj.Text = text:upper(); _G.BtnObj.TextColor3 = color; _G.BtnObj.Font = Enum.Font.GothamBold; _G.BtnObj.TextSize = 12
+    _G.BtnStroke = Instance.new("UIStroke", _G.BtnObj); _G.BtnStroke.Color = Color3.fromRGB(45, 45, 50)
+    _G.BtnCorner = Instance.new("UICorner", _G.BtnObj); _G.BtnCorner.CornerRadius = UDim.new(0, 8)
+    _G.BtnObj.MouseButton1Click:Connect(callback)
+end
+
+-- МЕХАНИКА БЕЗОПАСНОГО СОХРАНЕНИЯ КОНФИГА
+_G.FatalityCreateConfigButtonHelper("Save Configuration Profile", Color3.fromRGB(0, 230, 100), function()
+    pcall(function()
+        if writefile then
+            _G.ConfigMasterDataStructure = {
+                CombatRageSettings = _G.cfg or {},
+                VisualsProSettings = _G.cfgVisualsPro or {}
+            }
+            _G.MasterJsonString = game:GetService("HttpService"):JSONEncode(_G.ConfigMasterDataStructure)
+            _G.TargetConfigSavePath = _G.FatalityFolderFolderName .. "/" .. _G.FatalityCurrentActivePresetName .. ".json"
+            writefile(_G.TargetConfigSavePath, _G.MasterJsonString)
+            print("[Fatality.win] Успешно сохранено: " .. _G.TargetConfigSavePath)
+            _G.FatalityRefreshConfigListVisuals()
+        end
+    end)
+end)
+
+-- МЕХАНИКА БЕЗОПАСНОГО ЛОАДА: ХИТ-ФИKС ДЛЯ СОХРАНЕНИЯ 2D ESP В ПАМЯТИ
+_G.FatalityCreateConfigButtonHelper("Load Configuration Profile", Color3.fromRGB(235, 20, 20), function()
+    pcall(function()
+        if readfile and isfile then
+            _G.TargetConfigSavePath = _G.FatalityFolderFolderName .. "/" .. _G.FatalityCurrentActivePresetName .. ".json"
+            
+            if isfile(_G.TargetConfigSavePath) then
+                _G.RawJsonDataFromFile = readfile(_G.TargetConfigSavePath)
+                _G.ParsedConfigData = game:GetService("HttpService"):JSONDecode(_G.RawJsonDataFromFile)
+                
+                -- Мягко обновляем таблицы конфигураций, не ломая ссылки наDrawing мета-потоки
+                if _G.ParsedConfigData.CombatRageSettings then 
+                    for key, value in pairs(_G.ParsedConfigData.CombatRageSettings) do
+                        _G.cfg[key] = value
+                    end
+                end
+                
+                if _G.ParsedConfigData.VisualsProSettings then 
+                    for key, value in pairs(_G.ParsedConfigData.VisualsProSettings) do
+                        _G.cfgVisualsPro[key] = value
+                    end
+                end
+                
+                -- [ФИKС-ХАК]: Вместо деструктивного удаления Drawing-объектов просто переключаем 
+                -- их видимость в false на 1 кадр. На следующем шаге RenderStepped они перерисуются сами!
+                if _G.FatalityAllBoxEspObjectsTablePrivate then
+                    for _, espBox in pairs(_G.FatalityAllBoxEspObjectsTablePrivate) do
+                        if espBox.Box then espBox.Box.Visible = false end
+                        if espBox.Corner then espBox.Corner.Visible = false end
+                    end
+                end
+                
+                print("[Fatality.win] Конфиг применен, 2D ESP успешно сохранен в памяти: " .. _G.TargetConfigSavePath)
+            end
+        end
+    end)
+end)
+
+_G.FatalityRefreshConfigListVisuals()
+print("Часть 3В (Фикс рендеринга ESP при Лоаде) успешно загружена!")
+--=============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 3Г: ФИНАЛЬНЫЙ СУПЕР-ФИКС ПИКСЕЛЬНОЙ СЕТКИ И ТУМАНА
+--=============================================================================
+
+_G.VisualsPageRefPrivate = _G.FatalityAllPages["Visuals"] or _G.MainPagesContainer
+_G.LightingService = game:GetService("Lighting")
+
+if _G.VisualsPageRefPrivate then
+    -- Намертво вырезаем любые старые фантомные фреймы со страницы
+    for _, child in ipairs(_G.VisualsPageRefPrivate:GetChildren()) do
+        if child.Name == "AtmosphereFogSettingsBubble" or child.Name == "WeaponChamsSettingsBubble" or child.Name == "ESPDesignerSuiteBubble" or child.Name == "WeaponVisualsBubble" then
+            child:Destroy()
+        end
+    end
+end
+
+if not _G.cfgVisualsPro then
+    _G.cfgVisualsPro = {
+        box2d = false, cornerBox = false, boxFill = false, boxGradient = false,
+        drawNames = false, drawHealth = false, drawTracers = false, targetHud = false,
+        drawSkeleton = false, draw3dBox = false, drawTools = false, hitmarkerEnabled = false,
+        weaponChamsEnabled = false, weaponChamsOpacity = 0.2, fogStart = 0, fogEnd = 150
+    }
+end
+if not _G.cfg then _G.cfg = {} end
+
+-- [ЖЕСТКИЙ ИСПРАВЛЕННЫЙ ДВИЖОК СВЕТЯЩЕГОСЯ КРОВAВOГО ТУМАНА]
+_G.FatalityToggleBloodFogPrivate = function(enable)
+    pcall(function()
+        if enable then
+            _G.cfgVisualsPro.bloodFogActive = true
+            _G.LightingService.ClockTime = 0
+            if _G.LightingService:FindFirstChild("Atmosphere") then _G.LightingService.Atmosphere.Parent = game end
+            _G.LightingService.FogColor = Color3.fromRGB(255, 10, 10)
+            _G.LightingService.FogStart = _G.cfgVisualsPro.fogStart or 0
+            _G.LightingService.FogEnd = _G.cfgVisualsPro.fogEnd or 150
+            _G.LightingService.Ambient = Color3.fromRGB(60, 0, 0)
+            _G.LightingService.OutdoorAmbient = Color3.fromRGB(40, 0, 0)
+        else
+            _G.cfgVisualsPro.bloodFogActive = false
+            _G.LightingService.ClockTime = 14
+            if game:FindFirstChild("Atmosphere") then game.Atmosphere.Parent = _G.LightingService end
+            _G.LightingService.FogColor = Color3.fromRGB(192, 192, 192)
+            _G.LightingService.FogStart = 0
+            _G.LightingService.FogEnd = 100000
+            _G.LightingService.Ambient = Color3.fromRGB(128, 128, 128)
+            _G.LightingService.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+        end
+    end)
+end
+
+--=============================================================================
+-- [🪟 ПРАВАЯ КОЛОНКА (X = 415) — ДВА МАССИВНЫХ СИММЕТРИЧНЫХ ОКНА ПО 380 ПИКСЕЛЕЙ]
+--=============================================================================
+
+-- ОКНО 1: ESP DESIGNER SUITE
+_G.EspDesignerContainer = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 380), UDim2.new(0, 415, 0, 20), "ESP Designer Suite")
+_G.cToggle(_G.EspDesignerContainer, "Enable Classic 2D Box ESP", false, function(state) _G.cfgVisualsPro.box2d = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Corner Box Style", false, function(state) _G.cfgVisualsPro.cornerBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Torso Gradient Fill", false, function(state) _G.cfgVisualsPro.boxGradient = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Player Nicknames", false, function(state) _G.cfgVisualsPro.drawNames = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Dynamic HP Bar", false, function(state) _G.cfgVisualsPro.drawHealth = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Equipped Tools", false, function(state) _G.cfgVisualsPro.drawTools = state end)
+_G.cToggle(_G.EspDesignerContainer, "Enable Screen Hitmarker", false, function(state) _G.cfgVisualsPro.hitmarkerEnabled = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Snap Tracers Lines", false, function(state) _G.cfgVisualsPro.drawTracers = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Skeleton Bones", false, function(state) _G.cfgVisualsPro.drawSkeleton = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render 3D Rig Box", false, function(state) _G.cfgVisualsPro.draw3dBox = state end)
+_G.cToggle(_G.EspDesignerContainer, "Render Target HUD Info", false, function(state) _G.cfgVisualsPro.targetHud = state end)
+
+-- ОКНО 2: WEAPON VISUALS (РАСТЯНУЛИ ДО ВЫСОТЫ 380!)
+_G.WeaponChamsBox = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 380), UDim2.new(0, 415, 0, 410), "Weapon Visuals")
+_G.cToggle(_G.WeaponChamsBox, "Enable Neon Weapon Chams", false, function(state) _G.cfgVisualsPro.weaponChamsEnabled = state end)
+_G.cSlider(_G.WeaponChamsBox, "Chams Transperency Opacity", 0.0, 1.0, 0.2, function(val) _G.cfgVisualsPro.weaponChamsOpacity = val end)
+_G.cToggle(_G.WeaponChamsBox, "Enable Red Bullet Tracers", false, function(state) _G.cfg.bulletTracers = state end)
+_G.cSlider(_G.WeaponChamsBox, "Tracers Line Opacity", 0.1, 1.0, 0.5, function(val) _G.cfg.bulletOpacity = val end)
+_G.cToggle(_G.WeaponChamsBox, "Enable Hit Audio Sounds", false, function(state) _G.cfg.hitSoundsEnabled = state end)
+
+_G.DropdownFrame = Instance.new("Frame")
+_G.DropdownFrame.Name = "HitsoundDropdownFrame"; _G.DropdownFrame.Size = UDim2.new(1, 0, 0, 50); _G.DropdownFrame.BackgroundTransparency = 1; _G.DropdownFrame.Parent = _G.WeaponChamsBox
+_G.DropLabel = Instance.new("TextLabel", _G.DropdownFrame)
+_G.DropLabel.Size = UDim2.new(1, 0, 0, 16); _G.DropLabel.BackgroundTransparency = 1; _G.DropLabel.Text = "Hitsound Sound Mode:"; _G.DropLabel.TextColor3 = Color3.fromRGB(150, 160, 160); _G.DropLabel.Font = Enum.Font.GothamSemibold; _G.DropLabel.TextSize = 12; _G.DropLabel.TextXAlignment = Enum.TextXAlignment.Left
+_G.MainDropBtn = Instance.new("TextButton", _G.DropdownFrame)
+_G.MainDropBtn.Size = UDim2.new(1, -10, 0, 26); _G.MainDropBtn.Position = UDim2.new(0, 0, 0, 20); _G.MainDropBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 16); _G.MainDropBtn.Text = "   Rust Bell (HvH)"; _G.MainDropBtn.TextColor3 = Color3.fromRGB(245, 20, 20); _G.MainDropBtn.Font = Enum.Font.GothamBold; _G.MainDropBtn.TextSize = 11; _G.MainDropBtn.TextXAlignment = Enum.TextXAlignment.Left
+_G.DropStroke = Instance.new("UIStroke", _G.MainDropBtn); _G.DropStroke.Color = Color3.fromRGB(45, 45, 50)
+_G.DropCorner = Instance.new("UICorner", _G.MainDropBtn); _G.DropCorner.CornerRadius = UDim.new(0, 6)
+
+_G.ItemsContainer = Instance.new("Frame", _G.DropdownFrame)
+_G.ItemsContainer.Size = UDim2.new(1, -10, 0, 72); _G.ItemsContainer.Position = UDim2.new(0, 0, 0, 48); _G.ItemsContainer.BackgroundColor3 = Color3.fromRGB(12, 12, 14); _G.ItemsContainer.ZIndex = 5; _G.ItemsContainer.Visible = false
+_G.ItemsStroke = Instance.new("UIStroke", _G.ItemsContainer); _G.ItemsStroke.Color = Color3.fromRGB(35, 35, 40)
+_G.ItemsCorner = Instance.new("UICorner", _G.ItemsContainer); _G.ItemsCorner.CornerRadius = UDim.new(0, 6)
+
+_G.MainDropBtn.MouseButton1Click:Connect(function() _G.ItemsContainer.Visible = not _G.ItemsContainer.Visible end)
+
+_G.FatalityHitSoundNamesList = {"Rust Bell (HvH)", "Minecraft Bell", "Standard Click"}
+for idx, name in ipairs(_G.FatalityHitSoundNamesList) do
+    _G.SubItemBtn = Instance.new("TextButton", _G.ItemsContainer)
+    _G.SubItemBtn.Size = UDim2.new(1, 0, 0, 24); _G.SubItemBtn.Position = UDim2.new(0, 0, 0, (idx - 1) * 24); _G.SubItemBtn.BackgroundTransparency = 1; _G.SubItemBtn.Text = "   " .. name; _G.SubItemBtn.TextColor3 = Color3.fromRGB(180, 180, 185); _G.SubItemBtn.Font = Enum.Font.GothamBold; _G.SubItemBtn.TextSize = 11; _G.SubItemBtn.TextXAlignment = Enum.TextXAlignment.Left; _G.SubItemBtn.ZIndex = 6
+    _G.SubItemBtn.MouseButton1Click:Connect(function()
+        _G.cfg.currentHitSoundMode = idx
+        _G.MainDropBtn.Text = "   " .. name
+        _G.ItemsContainer.Visible = false
+        if _G.FatalityPlaySoundTriggerPrivate then _G.FatalityPlaySoundTriggerPrivate() end
+    end)
+end
+
+--=============================================================================
+-- [🪟 ЛЕВАЯ КОЛОНКА (X = 20) — ТОЧНАЯ ПОСАДКА АТМОСФЕРЫ НА Y = 900]
+--=============================================================================
+_G.AtmosphereBox = _G.cBubble(_G.VisualsPageRefPrivate, UDim2.new(0, 385, 0, 185), UDim2.new(0, 20, 0, 900), "Atmosphere Fog Settings")
+_G.cToggle(_G.AtmosphereBox, "Enable Blood Fog", false, function(state) _G.FatalityToggleBloodFogPrivate(state) end)
+_G.cToggle(_G.AtmosphereBox, "Enable Pure Black Sky", false, function(state) _G.LightingService.ClockTime = state and 0 or 14 end)
+
+_G.cSlider(_G.AtmosphereBox, "Fog Start Distance", 0, 500, 0, function(val) 
+    _G.cfgVisualsPro.fogStart = val
+    if _G.cfgVisualsPro.bloodFogActive then _G.LightingService.FogStart = val end 
+end)
+_G.cSlider(_G.AtmosphereBox, "Fog End Thickness", 100, 2000, 150, function(val) 
+    _G.cfgVisualsPro.fogEnd = val
+    if _G.cfgVisualsPro.bloodFogActive then _G.LightingService.FogEnd = val end 
+end)
+
+print("Часть 3Г перевыровнена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 4А: ОЧИЩЕННЫЙ И РАЗГРУЖЕННЫЙ ИНТЕРФЕЙС ВКЛАДКИ HUD
+--=============================================================================
+
+_G.HudPageRefPrivate = _G.FatalityAllPages["HUD"]
+
+if _G.HudPageRefPrivate then
+    -- Полностью сносим старые плашки, чтобы перерисовать сетку начисто без дубликатов
+    _G.OldCrosshairBubble = _G.HudPageRefPrivate:FindFirstChild("CrosshairDesignerBubble")
+    _G.OldTuningBubble = _G.HudPageRefPrivate:FindFirstChild("HUDOverlaySettingsBubble")
+    if _G.OldCrosshairBubble then _G.OldCrosshairBubble:Destroy() end
+    if _G.OldTuningBubble then _G.OldTuningBubble:Destroy() end
+end
+
+if not _G.cfgVisualsPro then
+    _G.cfgVisualsPro = {
+        box2d = false, cornerBox = false, boxFill = false, boxGradient = false,
+        drawNames = false, drawHealth = false, drawTracers = false, targetHud = false,
+        damageInd = false, drawTools = false, drawStatesEnabled = false
+    }
+end
+
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.crosshair = _G.cfg.crosshair or false
+_G.cfg.crossSpin = _G.cfg.crossSpin or false
+_G.cfg.crossSpinSpeed = _G.cfg.crossSpinSpeed or 15
+_G.cfg.crossSize = _G.cfg.crossSize or 10
+_G.cfg.crossGap = _G.cfg.crossGap or 4
+_G.cfg.crossThickness = _G.cfg.crossThickness or 2
+_G.cfg.hudInfo = _G.cfg.hudInfo or false
+
+-- РЯД 1: Кастомный прицел (Слева, высота 330)
+_G.CrosshairBox = _G.cBubble(_G.HudPageRefPrivate, UDim2.new(0, 385, 0, 330), UDim2.new(0, 20, 0, 20), "Crosshair Designer")
+_G.cToggle(_G.CrosshairBox, "Enable Custom Crosshair", false, function(state) _G.cfg.crosshair = state end)
+_G.cToggle(_G.CrosshairBox, "Enable Crosshair Spinning", false, function(state) _G.cfg.crossSpin = state end)
+_G.cSlider(_G.CrosshairBox, "Spinning Speed", 1, 50, 15, function(val) _G.cfg.crossSpinSpeed = val end)
+_G.cSlider(_G.CrosshairBox, "Crosshair Size", 4, 30, 10, function(val) _G.cfg.crossSize = val end)
+_G.cSlider(_G.CrosshairBox, "Crosshair Gap", 0, 15, 4, function(val) _G.cfg.crossGap = val end)
+_G.cSlider(_G.CrosshairBox, "Crosshair Thickness", 1, 5, 2, function(val) _G.cfg.crossThickness = val end)
+
+-- [МЕГА-ФИКС HUD]: Окно сжато до высоты 160 пикселей, лишние кнопки вырезаны полностью!
+_G.TuningBox = _G.cBubble(_G.HudPageRefPrivate, UDim2.new(0, 385, 0, 160), UDim2.new(0, 415, 0, 20), "HUD Overlay Settings")
+
+_G.cToggle(_G.TuningBox, "Show Premium Watermark", false, function(state) _G.cfg.hudInfo = state end)
+_G.cToggle(_G.TuningBox, "Enable Advanced Damage Indicators", false, function(state) _G.cfgVisualsPro.damageInd = state end)
+_G.cToggle(_G.TuningBox, "Enable Enemy State Indicators", false, function(state) _G.cfgVisualsPro.drawStatesEnabled = state end)
+
+print("Часть 4А (Вкладка HUD полностью очищена от дубликатов) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 4Б: DRAGGABLE WATERMARK & SPINNING CROSSHAIR INTERCEPTOR
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- [1. ИНИЦИАЛИЗАЦИЯ СЛОЕВ ПРИЦЕЛА]
+local TopLine = Drawing.new("Line")
+local BottomLine = Drawing.new("Line")
+local LeftLine = Drawing.new("Line")
+local RightLine = Drawing.new("Line")
+
+local crosshairLines = {TopLine, BottomLine, LeftLine, RightLine}
+for _, line in ipairs(crosshairLines) do
+    line.Visible = false; line.Color = Color3.fromRGB(245, 20, 20); line.Thickness = 2
+end
+
+-- [2. ИНИЦИАЛИЗАЦИЯ ПРЕМИУМ-ВАТЕРМАРКИ FATALITY]
+local WmBG = Drawing.new("Square")
+WmBG.Visible = false; WmBG.Color = Color3.fromRGB(12, 12, 16); WmBG.Filled = true; WmBG.Transparency = 0.9
+
+local WmShadow = Drawing.new("Square")
+WmShadow.Visible = false; WmShadow.Color = Color3.fromRGB(0, 0, 0); WmShadow.Filled = true; WmShadow.Transparency = 0.4
+
+local WmStroke = Drawing.new("Square")
+WmStroke.Visible = false; WmStroke.Color = Color3.fromRGB(40, 40, 45); WmStroke.Filled = false; WmStroke.Thickness = 1
+
+local WmTopLine = Drawing.new("Line")
+WmTopLine.Visible = false; WmTopLine.Thickness = 2; WmTopLine.Color = Color3.fromRGB(235, 20, 20)
+
+local Watermark = Drawing.new("Text")
+Watermark.Visible = false; Watermark.Size = 13; Watermark.Color = Color3.fromRGB(220, 220, 225); Watermark.Font = 2; Watermark.Outline = true; Watermark.OutlineColor = Color3.fromRGB(0, 0, 0)
+
+-- Глобальные переменные для системы Drag & Drop ватермарки
+_G.FatalityWmPosition = _G.FatalityWmPosition or Vector2.new(20, 45)
+local isDraggingWm = false
+local dragOffset = Vector2.new(0, 0)
+local wmCurrentWidth = 200
+local wmCurrentHeight = 24
+
+-- Расширяем деструктор END для Части 4Б
+local oldAdvancedHudUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldAdvancedHudUnload then pcall(oldAdvancedHudUnload) end
+    for _, line in ipairs(crosshairLines) do line.Visible = false; line:Remove() end 
+    WmBG.Visible = false; WmBG:Remove(); WmShadow.Visible = false; WmShadow:Remove()
+    WmStroke.Visible = false; WmStroke:Remove(); WmTopLine.Visible = false; WmTopLine:Remove()
+    Watermark.Visible = false; Watermark:Remove()
+    
+    if _G.FatalityAdvancedHudConn then pcall(function() _G.FatalityAdvancedHudConn:Disconnect() end) end
+    if _G.FatalityWmDragStart then pcall(function() _G.FatalityWmDragStart:Disconnect() end) end
+    if _G.FatalityWmDragEnd then pcall(function() _G.FatalityWmDragEnd:Disconnect() end) end
+end
+
+-- Система считывания перетаскивания (Работает только если _G.ByPassOpened == true)
+if _G.FatalityWmDragStart then pcall(function() _G.FatalityWmDragStart:Disconnect() end) end
+_G.FatalityWmDragStart = UserInputService.InputBegan:Connect(function(input, processed)
+    if not _G.ByPassOpened then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local mousePos = UserInputService:GetMouseLocation()
+        if mousePos.X >= _G.FatalityWmPosition.X and mousePos.X <= (_G.FatalityWmPosition.X + wmCurrentWidth) then
+            if mousePos.Y >= _G.FatalityWmPosition.Y and mousePos.Y <= (_G.FatalityWmPosition.Y + wmCurrentHeight) then
+                isDraggingWm = true
+                dragOffset = _G.FatalityWmPosition - mousePos
+            end
+        end
+    end
+end)
+
+if _G.FatalityWmDragEnd then pcall(function() _G.FatalityWmDragEnd:Disconnect() end) end
+_G.FatalityWmDragEnd = UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then isDraggingWm = false end
+end)
+
+local currentCrosshairAngle = 0
+local tickCounter = 0
+
+-- Поток управления геометрией HUD
+if _G.FatalityAdvancedHudConn then pcall(function() _G.FatalityAdvancedHudConn:Disconnect() end) end
+_G.FatalityAdvancedHudConn = RunService.RenderStepped:Connect(function(deltaTime)
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then 
+        _G.clearAllDrawingObjectsPrivate()
+        return 
+    end
+    
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    tickCounter = tickCounter + deltaTime
+    
+    -- РЕНДЕРИНГ КРУТЯЩЕГОСЯ КРЕСТИКА
+    local isCrosshairVisible = _G.cfg and _G.cfg.crosshair or false
+    for _, line in ipairs(crosshairLines) do line.Visible = isCrosshairVisible end
+    
+    if isCrosshairVisible then
+        if _G.cfg.crossSpin then currentCrosshairAngle = currentCrosshairAngle + ((_G.cfg.crossSpinSpeed or 15) * deltaTime * 5) else currentCrosshairAngle = 0 end
+        local function getRotatedPoint(distance, angleOffset)
+            local finalAngle = math.rad(currentCrosshairAngle) + angleOffset
+            return Vector2.new(center.X + math.cos(finalAngle) * distance, center.Y + math.sin(finalAngle) * distance)
+        end
+        local cGap, cSize, cThick = _G.cfg.crossGap or 4, _G.cfg.crossSize or 10, _G.cfg.crossThickness or 2
+        for _, line in ipairs(crosshairLines) do line.Thickness = cThick end
+        
+        TopLine.From = getRotatedPoint(cGap, -math.pi / 2); TopLine.To = getRotatedPoint(cGap + cSize, -math.pi / 2)
+        BottomLine.From = getRotatedPoint(cGap, math.pi / 2); BottomLine.To = getRotatedPoint(cGap + cSize, math.pi / 2)
+        LeftLine.From = getRotatedPoint(cGap, math.pi); LeftLine.To = getRotatedPoint(cGap + cSize, math.pi)
+        RightLine.From = getRotatedPoint(cGap, 0); RightLine.To = getRotatedPoint(cGap + cSize, 0)
+    end
+
+    -- ОБНОВЛЕНИЕ ПОЗИЦИИ ВАТЕРМАРКИ ЧЕРЕЗ МЫШКУ
+    local isWatermarkVisible = _G.cfg and _G.cfg.hudInfo or false
+    WmBG.Visible = isWatermarkVisible; WmShadow.Visible = isWatermarkVisible; WmStroke.Visible = isWatermarkVisible; WmTopLine.Visible = isWatermarkVisible; Watermark.Visible = isWatermarkVisible
+    
+    if isWatermarkVisible then
+        if isDraggingWm and _G.ByPassOpened then
+            local currentMousePos = UserInputService:GetMouseLocation()
+            _G.FatalityWmPosition = currentMousePos + dragOffset
+            _G.FatalityWmPosition = Vector2.new(
+                math.clamp(_G.FatalityWmPosition.X, 0, Camera.ViewportSize.X - wmCurrentWidth),
+                math.clamp(_G.FatalityWmPosition.Y, 0, Camera.ViewportSize.Y - wmCurrentHeight)
+            )
+        end
+        
+        local currentFps = math.floor(1 / deltaTime)
+        local wmText = string.format(" fatality.win  |  fps: %s  |  user: %s ", tostring(currentFps), LocalPlayer.Name)
+        Watermark.Text = wmText
+        
+        wmCurrentWidth = string.len(wmText) * 7.2 + 20
+        
+        WmShadow.Position = _G.FatalityWmPosition + Vector2.new(2, 2); WmShadow.Size = Vector2.new(wmCurrentWidth, wmCurrentHeight)
+        WmBG.Position = _G.FatalityWmPosition; WmBG.Size = Vector2.new(wmCurrentWidth, wmCurrentHeight)
+        WmStroke.Position = _G.FatalityWmPosition; WmStroke.Size = Vector2.new(wmCurrentWidth, wmCurrentHeight)
+        
+        WmTopLine.From = _G.FatalityWmPosition
+        WmTopLine.To = Vector2.new(_G.FatalityWmPosition.X + wmCurrentWidth, _G.FatalityWmPosition.Y)
+        
+        local redIntensity = math.sin(tickCounter * 1.5) * 40 + 200
+        WmTopLine.Color = Color3.fromRGB(redIntensity, 20, math.cos(tickCounter * 1.5) * 40 + 40)
+        
+        Watermark.Position = _G.FatalityWmPosition + Vector2.new(8, 5)
+    else isDraggingWm = false end
+end)
+
+print("Часть 4Б (Стабильный Прицел и Ватермарка) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 4В: ADVANCED DAMAGE FONTAIN (ФИЗИКА ВСПЛЫВАЮЩЕГО УРОНА)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+_G.FatalityDmgIndicatorsCache = _G.FatalityDmgIndicatorsCache or {}
+local advancedActiveIndicators = {}
+
+-- Привязка очистки пула текста урона к деструктору END чита
+local oldDamageSuiteUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldDamageSuiteUnload then pcall(oldDamageSuiteUnload) end
+    for _, ind in ipairs(advancedActiveIndicators) do ind.Object.Visible = false; ind.Object:Remove() end
+    advancedActiveIndicators = {}
+    if _G.FatalityDamageFontainConn then pcall(function() _G.FatalityDamageFontainConn:Disconnect() end) end
+end
+
+-- [ЕДИНЫЙ ВЕЧНЫЙ ПОТОК СЧИТЫВАНИЯ И ФИЗИКИ ВСПЛЫВАЮЩЕГО УРОНА]
+if _G.FatalityDamageFontainConn then pcall(function() _G.FatalityDamageFontainConn:Disconnect() end) end
+_G.FatalityDamageFontainConn = RunService.RenderStepped:Connect(function(deltaTime)
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then 
+        _G.clearAllDrawingObjectsPrivate()
+        return 
+    end
+
+    -- 1. СКАНИРОВАНИЕ ИЗМЕНЕНИЙ ЗДОРОВЬЯ ВСЕХ ИГРОКОВ НА СЕРВЕРЕ
+    for _, player in ipairs(Players:GetPlayers()) do
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        local head = character and character:FindFirstChild("Head")
+        
+        if player ~= LocalPlayer and character and humanoid and head then
+            -- Если игрока нет в кэше старого здоровья — заносим его текущие данные
+            if not _G.FatalityDmgIndicatorsCache[player] then _G.FatalityDmgIndicatorsCache[player] = humanoid.Health end
+            
+            -- Проверка: если здоровье уменьшилось, фиксируем урон
+            if _G.FatalityDmgIndicatorsCache[player] > humanoid.Health and humanoid.Health > 0 then
+                local damageValue = math.floor(_G.FatalityDmgIndicatorsCache[player] - humanoid.Health)
+                _G.FatalityDmgIndicatorsCache[player] = humanoid.Health
+                
+                -- Если фича активирована тумблером в меню, запускаем 3D-фонтан
+                if _G.cfgVisualsPro and _G.cfgVisualsPro.damageInd then
+                    local textObj = Drawing.new("Text")
+                    textObj.Text = "-" .. tostring(damageValue)
+                    textObj.Font = 2; textObj.Outline = true; textObj.Center = true
+                    
+                    -- ДИНАМИЧЕСКИЙ КРИТ-ЧЕК: Если урон жирный, увеличиваем размер и красим в оранжевый
+                    if damageValue >= 25 then
+                        textObj.Size = 22; textObj.Color = Color3.fromRGB(255, 140, 0)
+                    else
+                        textObj.Size = 15; textObj.Color = Color3.fromRGB(245, 20, 20)
+                    end
+                    
+                    -- Придаем начальное случайное физическое ускорение (Разброс по сторонам и сильный подброс вверх)
+                    local randomVelocity = Vector3.new(
+                        math.random(-22, 22) / 7, -- Вектор X (Влево/Вправо)
+                        math.random(28, 48) / 7,  -- Вектор Y (Импульс вверх)
+                        math.random(-22, 22) / 7  -- Вектор Z
+                    )
+                    
+                    table.insert(advancedActiveIndicators, {
+                        Object = textObj,
+                        Position3D = head.Position,
+                        Velocity3D = randomVelocity,
+                        LifeTime = 1.0 -- Живёт ровно одну секунду
+                    })
+                end
+            else
+                _G.FatalityDmgIndicatorsCache[player] = humanoid.Health
+            end
+        end
+    end
+
+    -- 2. СИМУЛЯЦИЯ ГРАВИТАЦИИ И ПЛАВНОГО ЗАТУХАНИЯ (FADE OUT)
+    for i = #advancedActiveIndicators, 1, -1 do
+        local indicator = advancedActiveIndicators[i]
+        indicator.LifeTime = indicator.LifeTime - deltaTime
+        
+        if indicator.LifeTime <= 0 then
+            indicator.Object.Visible = false; indicator.Object:Remove()
+            table.remove(advancedActiveIndicators, i)
+        else
+            -- Воздействуем силой гравитации на вектор скорости (цифры плавно падают обратно)
+            indicator.Velocity3D = indicator.Velocity3D - Vector3.new(0, 9.8 * deltaTime * 1.5, 0)
+            indicator.Position3D = indicator.Position3D + (indicator.Velocity3D * deltaTime * 12)
+            
+            local camPos, onScreen = Camera:WorldToViewportPoint(indicator.Position3D)
+            if onScreen and _G.cfgVisualsPro and _G.cfgVisualsPro.damageInd then
+                indicator.Object.Position = Vector2.new(camPos.X, camPos.Y)
+                
+                -- Текстовые эффекты: текст плавно уменьшается и растворяется к концу жизни
+                indicator.Object.Size = math.clamp(18 * (indicator.LifeTime / 1.0), 10, 22)
+                indicator.Object.Transparency = math.clamp(indicator.LifeTime * 1.5, 0, 1)
+                indicator.Object.Visible = true
+            else
+                indicator.Object.Visible = false
+            end
+        end
+    end
+end)
+
+print("Часть 4В (Движок Premium Damage Indicators) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 4Г: ДВИЖОК РЕНДЕРИНГА ТРЕЙСЕРОВ ПУЛЬ (BULLET TRACERS)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local activeBulletTracers = {}
+
+-- Перехватываем выстрелы оружия через логику Workspace и звуков эффектов в Prison Life
+local function onBulletFired(startPos, endPos)
+    if not (_G.cfg and _G.cfg.bulletTracers) then return end
+    
+    -- Создаем низкоуровневую 2D линию Drawing
+    local tracerLine = Drawing.new("Line")
+    tracerLine.Visible = false
+    tracerLine.Thickness = 2.0
+    tracerLine.Color = Color3.fromRGB(245, 20, 20) -- Чистый алый цвет Fatality
+    -- Накатываем стартовую прозрачность напрямую из твоего ползунка в меню HUD
+    tracerLine.Transparency = _G.cfg.bulletOpacity or 0.5 
+    
+    table.insert(activeBulletTracers, {
+        Line = tracerLine,
+        Start3D = startPos,
+        End3D = endPos,
+        LifeTime = 1.2, -- Линия висит на экране чуть дольше секунды перед исчезновением
+        MaxOpacity = _G.cfg.bulletOpacity or 0.5
+    })
+end
+
+-- [БЕЗОПАСНЫЙ ХУК НА ВЫСТРЕЛЫ ОРУЖИЯ ДЛЯ PRISON LIFE]
+local function hookLocalWeapon()
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    -- Ищем активный ствол в руках нашего персонажа
+    char.ChildAdded:Connect(function(tool)
+        if tool:IsA("Tool") and tool:FindFirstChild("Muzzle") then
+            -- Привязываемся к событию активации/выстрела пушки
+            tool.Activated:Connect(function()
+                local muzzle = tool:FindFirstChild("Muzzle")
+                local mouse = LocalPlayer:GetMouse()
+                if muzzle and mouse then
+                    -- Фиксируем 3D координаты: от дула ствола до клика мышки/головы врага
+                    task.spawn(onBulletFired, muzzle.Position, mouse.Hit.Position)
+                end
+            end)
+        end
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(hookLocalWeapon)
+hookLocalWeapon()
+
+-- [ВЕЧНЫЙ ПОТОК ЖИВОЙ ГЕОМЕТРИИ И ПЛАВНОГО ИСЧЕЗНОВЕНИЯ ЛУЧЕЙ]
+if _G.FatalityBulletTracersConn then pcall(function() _G.FatalityBulletTracersConn:Disconnect() end) end
+_G.FatalityBulletTracersConn = RunService.RenderStepped:Connect(function(deltaTime)
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityBulletTracersConn then _G.FatalityBulletTracersConn:Disconnect() end
+        for _, tracer in ipairs(activeBulletTracers) do tracer.Line.Visible = false; tracer.Line:Remove() end
+        return
+    end
+
+    for i = #activeBulletTracers, 1, -1 do
+        local tracer = activeBulletTracers[i]
+        tracer.LifeTime = tracer.LifeTime - deltaTime
+        
+        if tracer.LifeTime <= 0 then
+            tracer.Line.Visible = false
+            tracer.Line:Remove()
+            table.remove(activeBulletTracers, i)
+        else
+            -- Проецируем 3D координаты выстрела в 2D пиксели твоего монитора
+            local start2D, startOn = Camera:WorldToViewportPoint(tracer.Start3D)
+            local end2D, endOn = Camera:WorldToViewportPoint(tracer.End3D)
+            
+            if startOn or endOn then
+                tracer.Line.From = Vector2.new(start2D.X, start2D.Y)
+                tracer.Line.To = Vector2.new(end2D.X, end2D.Y)
+                
+                -- ПЛАВНЫЙ FADE-OUT: Ближе к концу жизни луч постепенно растворяется в воздухе
+                -- Считаем остаток прозрачности относительно дефолтного значения ползунка
+                local fadeRatio = tracer.LifeTime / 1.2
+                tracer.Line.Transparency = math.clamp(tracer.MaxOpacity * fadeRatio, 0, 1)
+                tracer.Line.Visible = true
+            else
+                tracer.Line.Visible = false
+            end
+        end
+    end
+end)
+
+-- Интеграция очистки памяти в кнопку паники END чита
+local oldTracersUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldTracersUnload then pcall(oldTracersUnload) end
+    if _G.FatalityBulletTracersConn then pcall(function() _G.FatalityBulletTracersConn:Disconnect() end) end
+    for _, tracer in ipairs(activeBulletTracers) do tracer.Line.Visible = false; tracer.Line:Remove() end
+    activeBulletTracers = {}
+    print("[Fatality Tracers] Все линии выстрелов успешно вычищены!")
+end
+
+print("Ультимативная Часть 4Г (Bullet Tracers Core) успешно загружена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 4Е: СЕТЕВОЙ ПЕРЕХВАТЧИК DAMAGE ДЛЯ 100% РЕГА ЗВУКА RUST
+--=============================================================================
+
+_G.FatalityHitmarkerLinesPrivate = _G.FatalityHitmarkerLinesPrivate or {}
+_G.FatalityHitmarkerTimeLeftPrivate = 0
+
+-- Справочник звуков (синхронизирован со шторкой из Части 3Г)
+_G.FatalityHitSoundIdsList = {
+    [1] = "rbxassetid://80064459083952", -- Оригинальный Rust Bell
+    [2] = "rbxassetid://8434313933",     -- Minecraft Bell
+    [3] = "rbxassetid://1310931561"      -- Standard Click
+}
+
+-- Глобальная функция воспроизведения звука и поджога крестика
+_G.FatalityPlaySoundTriggerPrivate = function()
+    if _G.cfg and _G.cfg.hitSoundsEnabled then
+        pcall(function()
+            _G.HitSoundObj = game:GetService("SoundService"):FindFirstChild("FatalityHitSound")
+            if not _G.HitSoundObj then
+                _G.HitSoundObj = Instance.new("Sound")
+                _G.HitSoundObj.Name = "FatalityHitSound"
+                _G.HitSoundObj.Volume = 4.0 -- Накрутили сочность и громкость на максимум!
+                _G.HitSoundObj.Parent = game:GetService("SoundService")
+            end
+            
+            -- Считываем ID звука, который выбран в твоей шторке прямо сейчас
+            _G.SelectedSoundIndex = _G.cfg.currentHitSoundMode or 1
+            _G.HitSoundObj.SoundId = _G.FatalityHitSoundIdsList[_G.SelectedSoundIndex] or _G.FatalityHitSoundIdsList[1]
+            _G.HitSoundObj:Play()
+        end)
+    end
+    
+    if _G.cfgVisualsPro and _G.cfgVisualsPro.hitmarkerEnabled then
+        _G.FatalityHitmarkerTimeLeftPrivate = 0.4
+    end
+end
+
+-- =============================================================================
+-- [МЕГА-ХАК СЕТИ]: ЖЕСТКИЙ ПЕРЕХВАТ DAMAGE EVENT ИЗ ИГРОВОГО РЕЕСТРА ROBLOX
+-- =============================================================================
+if _G.FatalityNetworkDamageHookPrivate then pcall(function() _G.FatalityNetworkDamageHookPrivate:Disconnect() end) end
+
+-- Хукаем триггер, который сообщает клиенту о любом успешном попадании по хитбоксу
+_G.ShootEventRefPrivate = game:GetService("ReplicatedStorage"):FindFirstChild("ShootEvent") or game:GetService("ReplicatedStorage"):FindFirstChild("BulletEvent")
+
+-- Универсальный сканер сетевых папок Prison Life
+task.spawn(function()
+    _G.GameLocalPlayerRef = game:GetService("Players").LocalPlayer
+    
+    -- Сканируем изменения папки повреждений в реальном времени
+    if workspace:FindFirstChild("Effects") then
+        _G.FatalityNetworkDamageHookPrivate = workspace.Effects.ChildAdded:Connect(function(child)
+            -- Игра создает этот объект ТОЛЬКО когда сервер подтвердил, что твоя пуля нанесла дамаг!
+            if child.Name == "Bullet" then
+                _G.WeaponCreatorValue = child:FindFirstChild("Creator") or child:FindFirstChild("player")
+                
+                -- Если пуля выпущена нами — это 100% попадание и хит!
+                if _G.WeaponCreatorValue and _G.WeaponCreatorValue.Value == _G.GameLocalPlayerRef then
+                    _G.FatalityPlaySoundTriggerPrivate()
+                else
+                    -- Запасной обход на случай лага детекции игрока (если Сайлент косит толпу копов)
+                    _G.DistanceToCam = (child.Position - workspace.CurrentCamera.CFrame.Position).Magnitude
+                    if _G.DistanceToCam <= 5 then
+                        _G.FatalityPlaySoundTriggerPrivate()
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- =============================================================================
+-- [ГРАФИЧЕСКИЙ ДВИЖОК ОТРИСОВКИ КРЕСTИКА ✕]
+-- =============================================================================
+for _, line in ipairs(_G.FatalityHitmarkerLinesPrivate) do pcall(function() line.Visible = false; line:Remove() end) end
+_G.FatalityHitmarkerLinesPrivate = {}
+
+for i = 1, 4 do
+    _G.H_Line = Drawing.new("Line")
+    _G.H_Line.Visible = false
+    _G.H_Line.Thickness = 2.2
+    _G.H_Line.Color = Color3.fromRGB(255, 15, 15) -- Фирменный алый цвет Fatality.win
+    _G.H_Line.Transparency = 1.0
+    table.insert(_G.FatalityHitmarkerLinesPrivate, _G.H_Line)
+end
+
+if _G.FatalityHitmarkerRenderConnPrivate then pcall(function() _G.FatalityHitmarkerRenderConnPrivate:Disconnect() end) end
+_G.FatalityHitmarkerRenderConnPrivate = game:GetService("RunService").RenderStepped:Connect(function(deltaTime)
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        for _, line in ipairs(_G.FatalityHitmarkerLinesPrivate) do line.Visible = false; line:Remove() end
+        _G.FatalityHitmarkerRenderConnPrivate:Disconnect() return
+    end
+
+    if _G.cfgVisualsPro and _G.cfgVisualsPro.hitmarkerEnabled and _G.FatalityHitmarkerTimeLeftPrivate > 0 then
+        _G.FatalityHitmarkerTimeLeftPrivate = _G.FatalityHitmarkerTimeLeftPrivate - deltaTime
+        
+        _G.CamViewportSize = workspace.CurrentCamera.ViewportSize
+        _G.ScreenCenterX = _G.CamViewportSize.X / 2
+        _G.ScreenCenterY = _G.CamViewportSize.Y / 2
+        
+        _G.H_Gap = 5
+        _G.H_Size = 9
+        _G.CurrentFadeTransparency = math.clamp(_G.FatalityHitmarkerTimeLeftPrivate / 0.4, 0, 1)
+        
+        _G.LinesCoordinatesData = {
+            {From = Vector2.new(_G.ScreenCenterX - _G.H_Gap, _G.ScreenCenterY - _G.H_Gap), To = Vector2.new(_G.ScreenCenterX - (_G.H_Gap + _G.H_Size), _G.ScreenCenterY - (_G.H_Gap + _G.H_Size))},
+            {From = Vector2.new(_G.ScreenCenterX + _G.H_Gap, _G.ScreenCenterY - _G.H_Gap), To = Vector2.new(_G.ScreenCenterX + (_G.H_Gap + _G.H_Size), _G.ScreenCenterY - (_G.H_Gap + _G.H_Size))},
+            {From = Vector2.new(_G.ScreenCenterX - _G.H_Gap, _G.ScreenCenterY + _G.H_Gap), To = Vector2.new(_G.ScreenCenterX - (_G.H_Gap + _G.H_Size), _G.ScreenCenterY + (_G.H_Gap + _G.H_Size))},
+            {From = Vector2.new(_G.ScreenCenterX + _G.H_Gap, _G.ScreenCenterY + _G.H_Gap), To = Vector2.new(_G.ScreenCenterX + (_G.H_Gap + _G.H_Size), _G.ScreenCenterY + (_G.H_Gap + _G.H_Size))}
+        }
+        
+        for idx, line in ipairs(_G.FatalityHitmarkerLinesPrivate) do
+            line.From = _G.LinesCoordinatesData[idx].From
+            line.To = _G.LinesCoordinatesData[idx].To
+            line.Transparency = _G.CurrentFadeTransparency
+            line.Visible = true
+        end
+    else
+        for _, line in ipairs(_G.FatalityHitmarkerLinesPrivate) do line.Visible = false end
+    end
+end)
+
+print("[Fatality.win] Часть 4Е (Сетевой рег хитов) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 5А: СТРУКТУРЫ И СЛОИ ГРАДИЕНТА
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Таблица для глобальной синхронизации флагов (если 3А еще не инжектилась)
+if not _G.cfgVisualsPro then
+    _G.cfgVisualsPro = {
+        box2d = false,        -- Обычный полный бокс
+        cornerBox = false,    -- Corner Box (Угловые боксы)
+        boxFill = false,      -- Заливка бокса
+        boxGradient = false,  -- Плавный градиент сверху
+        drawNames = false,    -- Отображение Никнеймов
+        drawHealth = false,   -- Отображение полоски ХП
+        drawTracers = false,  -- Трейсеры к игрокам
+        targetHud = false     -- Target HUD инфо-панель цели
+    }
+end
+
+-- Глобальное хранилище Drawing-объектов всех игроков на сервере
+_G.FatalityPlayerVisuals = _G.FatalityPlayerVisuals or {}
+
+-- [ФУНКЦИЯ СОЗДАНИЯ ПОЛНОГО ГРАФИЧЕСКОГО ПАКЕТА ДЛЯ ИГРОКА]
+local function createPlayerEsp(player)
+    if _G.FatalityPlayerVisuals[player] then return end
+    
+    local visuals = {
+        -- Обычные полные боксы
+        Top = Drawing.new("Line"), Bottom = Drawing.new("Line"),
+        Left = Drawing.new("Line"), Right = Drawing.new("Line"),
+        
+        -- Угловые боксы (8 независимых линий для 4 углов)
+        Corner1 = Drawing.new("Line"), Corner2 = Drawing.new("Line"),
+        Corner3 = Drawing.new("Line"), Corner4 = Drawing.new("Line"),
+        Corner5 = Drawing.new("Line"), Corner6 = Drawing.new("Line"),
+        Corner7 = Drawing.new("Line"), Corner8 = Drawing.new("Line"),
+        
+        -- Линия трейсера от низа экрана
+        Tracer = Drawing.new("Line"),
+        
+        -- Текст Никнейма
+        NameText = Drawing.new("Text"),
+        
+        -- Полоски динамического здоровья
+        HealthBarBG = Drawing.new("Line"),
+        HealthBar = Drawing.new("Line"),
+        
+        -- Таблица слоев для премиум-градиента Fatality
+        FillLines = {}
+    }
+    
+    -- Настраиваем базовые свойства всех линий
+    local allBaseLines = {
+        visuals.Top, visuals.Bottom, visuals.Left, visuals.Right,
+        visuals.Corner1, visuals.Corner2, visuals.Corner3, visuals.Corner4,
+        visuals.Corner5, visuals.Corner6, visuals.Corner7, visuals.Corner8,
+        visuals.Tracer, visuals.HealthBarBG, visuals.HealthBar
+    }
+    
+    for _, line in ipairs(allBaseLines) do
+        line.Visible = false
+        line.Color = Color3.fromRGB(245, 20, 20)
+        line.Thickness = 1.5
+        line.Transparency = 1
+    end
+    
+    -- Кастомизация полоски HP
+    visuals.HealthBarBG.Color = Color3.fromRGB(30, 30, 30)
+    visuals.HealthBarBG.Thickness = 2.5
+    visuals.HealthBar.Color = Color3.fromRGB(0, 255, 100)
+    visuals.HealthBar.Thickness = 1.5
+    
+    -- Кастомизация шрифта имени
+    visuals.NameText.Visible = false
+    visuals.NameText.Size = 13
+    visuals.NameText.Color = Color3.fromRGB(255, 255, 255)
+    visuals.NameText.Center = true
+    visuals.NameText.Outline = true
+    visuals.NameText.OutlineColor = Color3.fromRGB(0, 0, 0)
+    visuals.NameText.Font = 2
+    
+    -- Нарезаем 15 ультратонких слоев, уходящих в прозрачность книзу
+    for i = 1, 15 do
+        local fLine = Drawing.new("Line")
+        fLine.Visible = false
+        fLine.Thickness = 1
+        fLine.Color = Color3.fromRGB(245, 20, 20)
+        fLine.Transparency = (16 - i) / 45 -- Чем ниже слой, тем он прозрачнее
+        table.insert(visuals.FillLines, fLine)
+    end
+    
+    _G.FatalityPlayerVisuals[player] = visuals
+end
+
+local function removePlayerEsp(player)
+    if _G.FatalityPlayerVisuals[player] then
+        local vis = _G.FatalityPlayerVisuals[player]
+        for _, line in pairs(vis) do
+            if type(line) == "table" then
+                for _, fLine in ipairs(line) do fLine:Remove() end
+            elseif type(line) == "userdata" then
+                line:Remove()
+            end
+        end
+        _G.FatalityPlayerVisuals[player] = nil
+    end
+end
+
+-- [ГЛОБАЛЬНЫЙ ОЧИСТИТЕЛЬ DRAWING ПАМЯТИ ДЛЯ КНОПКИ END (ПАНИКА)]
+_G.clearAllBoxEspObjectsPrivate = function()
+    _G.FatalityChamsLoopActive = false
+    if _G.FatalityDynamicBoxEspConn then pcall(function() _G.FatalityDynamicBoxEspConn:Disconnect() end) end
+    
+    for player, vis in pairs(_G.FatalityPlayerVisuals) do
+        for _, line in pairs(vis) do
+            if type(line) == "table" then
+                for _, fLine in ipairs(line) do fLine.Visible = false fLine:Remove() end
+            elseif type(line) == "userdata" then
+                line.Visible = false line:Remove()
+            end
+        end
+    end
+    _G.FatalityPlayerVisuals = {}
+    print("Память 2D ESP очищена под ноль!")
+end
+
+-- Запуск контроля за игроками
+for _, p in pairs(Players:GetPlayers()) do createPlayerEsp(p) end
+Players.PlayerAdded:Connect(createPlayerEsp)
+Players.PlayerRemoving:Connect(removePlayerEsp)
+
+print("Часть 5А (Ядро структур ESP) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 5Б: СТАБИЛЬНЫЙ РЕНДЕРИНГ ГЕОМЕТРИИ ESP И ХП
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+_G.FatalityTargetForHud = nil
+_G.FatalityClosestHudDistance = 99999
+
+RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then return end
+    
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local screenBottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+    
+    _G.FatalityTargetForHud = nil
+    _G.FatalityClosestHudDistance = 99999
+    local myTeamName = LocalPlayer.Team and LocalPlayer.Team.Name or ""
+    
+    for player, vis in pairs(_G.FatalityPlayerVisuals or {}) do
+        local character = player.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+        local headPart = character and character:FindFirstChild("Head")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        
+        local function hideGeometry()
+            vis.Top.Visible = false; vis.Bottom.Visible = false; vis.Left.Visible = false; vis.Right.Visible = false
+            vis.Corner1.Visible = false; vis.Corner2.Visible = false; vis.Corner3.Visible = false; vis.Corner4.Visible = false
+            vis.Corner5.Visible = false; vis.Corner6.Visible = false; vis.Corner7.Visible = false; vis.Corner8.Visible = false
+            vis.Tracer.Visible = false; vis.HealthBarBG.Visible = false; vis.HealthBar.Visible = false
+            for _, fLine in ipairs(vis.FillLines) do fLine.Visible = false end
+        end
+        
+        if character and rootPart and humanoid and humanoid.Health > 0 and player ~= LocalPlayer then
+            local rootPos, isOnScreen = Camera:WorldToViewportPoint(rootPart.Position)
+            
+            if isOnScreen then
+                local boxWidth = 2200 / rootPos.Z
+                local boxHeight = 3200 / rootPos.Z
+                
+                local topLeft = Vector2.new(rootPos.X - boxWidth / 2, rootPos.Y - boxHeight / 2)
+                local bottomRight = Vector2.new(rootPos.X + boxWidth / 2, rootPos.Y + boxHeight / 2)
+                local topRight = Vector2.new(bottomRight.X, topLeft.Y)
+                local bottomLeft = Vector2.new(topLeft.X, bottomRight.Y)
+                
+                -- Жесткая подмена цвета элементов ESP строго по командам Prison Life
+                local espColor = Color3.fromRGB(245, 20, 20)
+                if player.Team then
+                    local tName = player.Team.Name
+                    if tName == "Criminals" then espColor = Color3.fromRGB(245, 20, 20)
+                    elseif tName == "Guards" or tName == "Police" then espColor = Color3.fromRGB(0, 120, 255)
+                    elseif tName == "Inmates" then espColor = Color3.fromRGB(255, 140, 0) end
+                end
+                
+                -- Передаем потенциальную цель для Target HUD в Часть 5Г
+                local mouseDist = (Vector2.new(rootPos.X, rootPos.Y) - screenCenter).Magnitude
+                if mouseDist < _G.FatalityClosestHudDistance and mouseDist < 250 and headPart then
+                    local isTeammate = (_G.cfg and _G.cfg.espT and player.Team == LocalPlayer.Team and player.Team ~= nil and player.Team.Name ~= "Neutral")
+                    if myTeamName == "Criminals" and player.Team and player.Team.Name == "Inmates" then isTeammate = true end
+                    
+                    -- Проверка стен (Временно true, основная фильтрация будет в 5Г)
+                    if not isTeammate then
+                        _G.FatalityClosestHudDistance = mouseDist
+                        _G.FatalityTargetForHud = player
+                    end
+                end
+                
+                -- 1. КЛАССИЧЕСКИЙ БОКС
+                local showNormalBox = _G.cfgVisualsPro and _G.cfgVisualsPro.box2d
+                vis.Top.Visible = showNormalBox; vis.Bottom.Visible = showNormalBox; vis.Left.Visible = showNormalBox; vis.Right.Visible = showNormalBox
+                if showNormalBox then
+                    vis.Top.From = topLeft; vis.Top.To = topRight; vis.Top.Color = espColor
+                    vis.Bottom.From = bottomLeft; vis.Bottom.To = bottomRight; vis.Bottom.Color = espColor
+                    vis.Left.From = topLeft; vis.Left.To = bottomLeft; vis.Left.Color = espColor
+                    vis.Right.From = topRight; vis.Right.To = bottomRight; vis.Right.Color = espColor
+                end
+                
+                -- 2. УГЛОВЫЕ БОКСЫ (CORNER BOX — ЦВЕТА СИНХРОНИЗИРОВАНЫ)
+                local showCornerBox = _G.cfgVisualsPro and _G.cfgVisualsPro.cornerBox
+                vis.Corner1.Visible = showCornerBox; vis.Corner2.Visible = showCornerBox; vis.Corner3.Visible = showCornerBox; vis.Corner4.Visible = showCornerBox
+                vis.Corner5.Visible = showCornerBox; vis.Corner6.Visible = showCornerBox; vis.Corner7.Visible = showCornerBox; vis.Corner8.Visible = showCornerBox
+                if showCornerBox then
+                    local cLength = boxWidth * 0.25
+                    vis.Corner1.From = topLeft; vis.Corner1.To = topLeft + Vector2.new(cLength, 0); vis.Corner1.Color = espColor
+                    vis.Corner2.From = topLeft; vis.Corner2.To = topLeft + Vector2.new(0, cLength); vis.Corner2.Color = espColor
+                    vis.Corner3.From = topRight; vis.Corner3.To = topRight + Vector2.new(-cLength, 0); vis.Corner3.Color = espColor
+                    vis.Corner4.From = topRight; vis.Corner4.To = topRight + Vector2.new(0, cLength); vis.Corner4.Color = espColor
+                    vis.Corner5.From = bottomLeft; vis.Corner5.To = bottomLeft + Vector2.new(cLength, 0); vis.Corner5.Color = espColor
+                    vis.Corner6.From = bottomLeft; vis.Corner6.To = bottomLeft + Vector2.new(0, -cLength); vis.Corner6.Color = espColor
+                    vis.Corner7.From = bottomRight; Lazy7 = espColor; vis.Corner7.To = bottomRight + Vector2.new(-cLength, 0); vis.Corner7.Color = espColor
+                    vis.Corner8.From = bottomRight; vis.Corner8.To = bottomRight + Vector2.new(0, -cLength); vis.Corner8.Color = espColor
+                end
+                
+                -- 3. ГРАДИЕНТ НА ТОРС
+                local showGradient = _G.cfgVisualsPro and _G.cfgVisualsPro.boxGradient
+                for idx, fLine in ipairs(vis.FillLines) do
+                    fLine.Visible = showGradient
+                    if showGradient then
+                        local layerY = topLeft.Y + ((bottomRight.Y - topLeft.Y) * (idx / 28))
+                        fLine.From = Vector2.new(topLeft.X, layerY); fLine.To = Vector2.new(bottomRight.X, layerY); fLine.Color = espColor
+                    end
+                end
+                
+                -- 4. ТРЕЙСЕРА
+                local showTracers = _G.cfgVisualsPro and _G.cfgVisualsPro.drawTracers
+                vis.Tracer.Visible = showTracers
+                if showTracers then
+                    vis.Tracer.From = screenBottom; vis.Tracer.To = Vector2.new(rootPos.X, bottomRight.Y); vis.Tracer.Color = espColor
+                end
+                
+                -- 5. ХП БАР (ПОЛОСКА ЗДОРОВЬЯ)
+                local showHealth = _G.cfgVisualsPro and _G.cfgVisualsPro.drawHealth
+                vis.HealthBarBG.Visible = showHealth; vis.HealthBar.Visible = showHealth
+                if showHealth then
+                    local barX = topLeft.X - 6
+                    vis.HealthBarBG.From = Vector2.new(barX, bottomLeft.Y); vis.HealthBarBG.To = Vector2.new(barX, topLeft.Y)
+                    local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+                    local barHeight = (bottomRight.Y - topLeft.Y) * hpPercent
+                    vis.HealthBar.From = Vector2.new(barX, bottomLeft.Y); vis.HealthBar.To = Vector2.new(barX, bottomLeft.Y - barHeight)
+                    vis.HealthBar.Color = Color3.fromRGB(255 * (1 - hpPercent), 255 * hpPercent, 0)
+                end
+            else hideGeometry() end
+        else hideGeometry() end
+    end
+end)
+
+print("Часть 5Б (Только чистая геометрия ESP) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 5В: SKELETON ESP ENGINE (ПРИМИТИВЫ ДЛЯ R6 СКЕЛЕТА)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+_G.FatalitySkeletonVisuals = _G.FatalitySkeletonVisuals or {}
+
+-- Функция создания пакета линий скелета для игрока
+local function createSkeletonLines(player)
+    if _G.FatalitySkeletonVisuals[player] then return end
+    
+    local bones = {
+        HeadToTorso = Drawing.new("Line"),
+        TorsoToLeftArm = Drawing.new("Line"),
+        TorsoToRightArm = Drawing.new("Line"),
+        TorsoToLeftLeg = Drawing.new("Line"),
+        TorsoToRightLeg = Drawing.new("Line")
+    }
+    
+    for _, line in pairs(bones) do
+        line.Visible = false
+        line.Thickness = 1.5
+        line.Transparency = 1
+        line.Color = Color3.fromRGB(245, 20, 20)
+    end
+    
+    _G.FatalitySkeletonVisuals[player] = bones
+end
+
+local function removeSkeletonLines(player)
+    if _G.FatalitySkeletonVisuals[player] then
+        for _, line in pairs(_G.FatalitySkeletonVisuals[player]) do line:Remove() end
+        _G.FatalitySkeletonVisuals[player] = nil
+    end
+end
+
+-- Деструктор очистки памяти для кнопки END
+local oldSkeletonUnload = _G.clearAllBoxEspObjectsPrivate
+_G.clearAllBoxEspObjectsPrivate = function()
+    if oldSkeletonUnload then pcall(oldSkeletonUnload) end
+    if _G.FatalitySkeletonConn then pcall(function() _G.FatalitySkeletonConn:Disconnect() end) end
+    
+    for player, bones in pairs(_G.FatalitySkeletonVisuals) do
+        for _, line in pairs(bones) do line.Visible = false; line:Remove() end
+    end
+    _G.FatalitySkeletonVisuals = {}
+    print("Память костей Skeleton ESP полностью вычищена!")
+end
+
+-- Контроль за пулом игроков
+for _, p in pairs(Players:GetPlayers()) do createSkeletonLines(p) end
+Players.PlayerAdded:Connect(createSkeletonLines)
+Players.PlayerRemoving:Connect(removeSkeletonLines)
+
+-- [ВЕЧНЫЙ ПОТОК РЕНДЕРИНГА СВЯЗЕЙ КОСТЕЙ]
+if _G.FatalitySkeletonConn then pcall(function() _G.FatalitySkeletonConn:Disconnect() end) end
+_G.FatalitySkeletonConn = RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then return end
+    
+    local showSkeleton = _G.cfgVisualsPro and _G.cfgVisualsPro.drawSkeleton
+    
+    for player, bones in pairs(_G.FatalitySkeletonVisuals) do
+        local character = player.Character
+        local head = character and character:FindFirstChild("Head")
+        local torso = character and character:FindFirstChild("Torso")
+        local leftArm = character and character:FindFirstChild("Left Arm")
+        local rightArm = character and character:FindFirstChild("Right Arm")
+        local leftLeg = character and character:FindFirstChild("Left Leg")
+        local rightLeg = character and character:FindFirstChild("Right Leg")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        
+        local function hideBones()
+            for _, line in pairs(bones) do line.Visible = false end
+        end
+        
+        if showSkeleton and character and humanoid and humanoid.Health > 0 and player ~= LocalPlayer and head and torso then
+            -- Переводим 3D координаты суставов R6 в 2D точки экрана
+            local headPos, headOn = Camera:WorldToViewportPoint(head.Position)
+            local torsoPos, torsoOn = Camera:WorldToViewportPoint(torso.Position)
+            
+            if headOn or torsoOn then
+                -- Жесткий подбор оригинального цвета под фракции Prison Life
+                local skColor = Color3.fromRGB(245, 20, 20)
+                if player.Team then
+                    local tName = player.Team.Name
+                    if tName == "Criminals" then skColor = Color3.fromRGB(245, 20, 20)
+                    elseif tName == "Guards" or tName == "Police" then skColor = Color3.fromRGB(0, 120, 255)
+                    elseif tName == "Inmates" then skColor = Color3.fromRGB(255, 140, 0) end
+                end
+                
+                for _, line in pairs(bones) do line.Color = skColor; line.Visible = true end
+                
+                -- Соединяем кости линиями
+                bones.HeadToTorso.From = Vector2.new(headPos.X, headPos.Y); bones.HeadToTorso.To = Vector2.new(torsoPos.X, torsoPos.Y)
+                
+                if leftArm then
+                    local lArmPos, _ = Camera:WorldToViewportPoint(leftArm.Position)
+                    bones.TorsoToLeftArm.From = Vector2.new(torsoPos.X, torsoPos.Y); bones.TorsoToLeftArm.To = Vector2.new(lArmPos.X, lArmPos.Y)
+                else bones.TorsoToLeftArm.Visible = false end
+                
+                if rightArm then
+                    local rArmPos, _ = Camera:WorldToViewportPoint(rightArm.Position)
+                    bones.TorsoToRightArm.From = Vector2.new(torsoPos.X, torsoPos.Y); bones.TorsoToRightArm.To = Vector2.new(rArmPos.X, rArmPos.Y)
+                else bones.TorsoToRightArm.Visible = false end
+                
+                if leftLeg then
+                    local lLegPos, _ = Camera:WorldToViewportPoint(leftLeg.Position)
+                    bones.TorsoToLeftLeg.From = Vector2.new(torsoPos.X, torsoPos.Y); bones.TorsoToLeftLeg.To = Vector2.new(lLegPos.X, lLegPos.Y)
+                else bones.TorsoToLeftLeg.Visible = false end
+                
+                if rightLeg then
+                    local rLegPos, _ = Camera:WorldToViewportPoint(rightLeg.Position)
+                    bones.TorsoToRightLeg.From = Vector2.new(torsoPos.X, torsoPos.Y); bones.TorsoToRightLeg.To = Vector2.new(rLegPos.X, rLegPos.Y)
+                else bones.TorsoToRightLeg.Visible = false end
+            else hideBones() end
+        else hideBones() end
+    end
+end)
+
+print("Часть 5В (Skeleton ESP Engine под R6) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 5Г: ДВИЖОК РЕНДЕРИНГА НИКНЕЙМОВ, ТУЛОВ И ИНДИКАТОРОВ СТАТУСА
+-- =============================================================================
+
+_G.FatalityTextEspRegistryPrivate = _G.FatalityTextEspRegistryPrivate or {}
+
+_G.FatalityClearTextEspForPlayer = function(player)
+    if _G.FatalityTextEspRegistryPrivate and _G.FatalityTextEspRegistryPrivate[player] then
+        pcall(function()
+            _G.FatalityTextEspRegistryPrivate[player].NameText.Visible = false
+            _G.FatalityTextEspRegistryPrivate[player].NameText:Remove()
+            _G.FatalityTextEspRegistryPrivate[player].ToolText.Visible = false
+            _G.FatalityTextEspRegistryPrivate[player].ToolText:Remove()
+            _G.FatalityTextEspRegistryPrivate[player].StateText.Visible = false
+            _G.FatalityTextEspRegistryPrivate[player].StateText:Remove()
+        end)
+        _G.FatalityTextEspRegistryPrivate[player] = nil
+    end
+end
+
+_G.FatalityGetOrCreateTextObjects = function(player)
+    if _G.FatalityTextEspRegistryPrivate[player] then return _G.FatalityTextEspRegistryPrivate[player] end
+    
+    _G.TextContainerStruct = {
+        NameText = Drawing.new("Text"),
+        ToolText = Drawing.new("Text"),
+        StateText = Drawing.new("Text") -- ТРЕТИЙ СЛОЙ ПОД ИНДИКАТОРЫ СОСТОЯНИЯ
+    }
+    
+    _G.TextContainerStruct.NameText.Visible = false; _G.TextContainerStruct.NameText.Size = 13; _G.TextContainerStruct.NameText.Color = Color3.fromRGB(255, 255, 255); _G.TextContainerStruct.NameText.Font = 2; _G.TextContainerStruct.NameText.Outline = true; _G.TextContainerStruct.NameText.Center = true
+    _G.TextContainerStruct.ToolText.Visible = false; _G.TextContainerStruct.ToolText.Size = 11; _G.TextContainerStruct.ToolText.Color = Color3.fromRGB(235, 235, 240); _G.TextContainerStruct.ToolText.Font = 2; _G.TextContainerStruct.ToolText.Outline = true; _G.TextContainerStruct.ToolText.Center = true
+    
+    -- Конфигурируем шрифт под выводимые статусы
+    _G.TextContainerStruct.StateText.Visible = false
+    _G.TextContainerStruct.StateText.Size = 10
+    _G.TextContainerStruct.StateText.Font = 2
+    _G.TextContainerStruct.StateText.Outline = true
+    _G.TextContainerStruct.StateText.Center = true
+    
+    _G.FatalityTextEspRegistryPrivate[player] = _G.TextContainerStruct
+    return _G.TextContainerStruct
+end
+
+if _G.FatalityTextEspPlayerLeaveConn then pcall(function() _G.FatalityTextEspPlayerLeaveConn:Disconnect() end) end
+_G.FatalityTextEspPlayerLeaveConn = game:GetService("Players").PlayerRemoving:Connect(_G.FatalityClearTextEspForPlayer)
+
+-- [ВЕЧНЫЙ ПОТОК РЕНДЕРИНГА ОВЕРЛЕЕВ И СКАНИРОВАНИЯ ПАМЯТИ ПУШЕК]
+if _G.FatalityTextEspConn then pcall(function() _G.FatalityTextEspConn:Disconnect() end) end
+_G.FatalityTextEspConn = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityTextEspRegistryPrivate then for p, _ in pairs(_G.FatalityTextEspRegistryPrivate) do _G.FatalityClearTextEspForPlayer(p) end _G.FatalityTextEspRegistryPrivate = {} end
+        if _G.FatalityTextEspPlayerLeaveConn then pcall(function() _G.FatalityTextEspPlayerLeaveConn:Disconnect() end) end
+        if _G.FatalityTextEspConn then _G.FatalityTextEspConn:Disconnect() end
+        return
+    end
+
+    _G.ShowNamesFlag = _G.cfgVisualsPro and _G.cfgVisualsPro.drawNames or false
+    _G.ShowToolsFlag = _G.cfgVisualsPro and _G.cfgVisualsPro.drawTools or false
+    _G.ShowStatesFlag = _G.cfgVisualsPro and _G.cfgVisualsPro.drawStatesEnabled or false
+
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        _G.PChar = player.Character
+        _G.PRoot = _G.PChar and _G.PChar:FindFirstChild("HumanoidRootPart")
+        _G.PHead = _G.PChar and _G.PChar:FindFirstChild("Head")
+        _G.PHum = _G.PChar and _G.PChar:FindFirstChildOfClass("Humanoid")
+        
+        if player ~= game:GetService("Players").LocalPlayer and _G.PChar and _G.PRoot and _G.PHead and _G.PHum and _G.PHum.Health > 0 then
+            _G.TextESP = _G.FatalityGetOrCreateTextObjects(player)
+            
+            _G.HeadPos2D, _G.HeadOnScreen = workspace.CurrentCamera:WorldToViewportPoint(_G.PHead.Position + Vector3.new(0, 1.5, 0))
+            _G.FeetPos2D, _G.FeetOnScreen = workspace.CurrentCamera:WorldToViewportPoint(_G.PRoot.Position - Vector3.new(0, 3.2, 0))
+            
+            -- 1. Никнейм над головой
+            if _G.ShowNamesFlag and _G.HeadOnScreen then
+                _G.TextESP.NameText.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+                _G.TextESP.NameText.Position = Vector2.new(_G.HeadPos2D.X, _G.HeadPos2D.Y)
+                _G.TextESP.NameText.Visible = true
+            else _G.TextESP.NameText.Visible = false end
+            
+            -- 2. Активный предмет (Тул) под ногами
+            _G.TextYOffsetModifierPrivate = 4
+            if _G.ShowToolsFlag and _G.FeetOnScreen then
+                _G.ActiveToolName = "[None]"
+                _G.EquippedToolObj = _G.PChar:FindFirstChildOfClass("Tool")
+                if _G.EquippedToolObj then _G.ActiveToolName = tostring(_G.EquippedToolObj.Name) end
+                
+                _G.TextESP.ToolText.Text = _G.ActiveToolName:upper()
+                _G.TextESP.ToolText.Position = Vector2.new(_G.FeetPos2D.X, _G.FeetPos2D.Y + _G.TextYOffsetModifierPrivate)
+                _G.TextESP.ToolText.Visible = true
+                _G.TextYOffsetModifierPrivate = _G.TextYOffsetModifierPrivate + 12 -- Смещаем позицию следующего текста ниже, чтобы строки не слипались
+            else _G.TextESP.ToolText.Visible = false end
+            
+            -- 3. ДИНАМИЧЕСКИЙ ДЕТЕКТОР СОСТОЯНИЙ (STATES) ПОД НОГАМИ
+            if _G.ShowStatesFlag and _G.FeetOnScreen then
+                _G.DetectedStateTextString = ""
+                _G.DetectedStateColor3 = Color3.fromRGB(255, 255, 255)
+                
+                -- А. Проверка на перезарядку (Reloading Check): сканируем локальный булевый флаг внутри пушки
+                _G.EnemyWeaponObj = _G.PChar:FindFirstChildOfClass("Tool")
+                if _G.EnemyWeaponObj and (_G.EnemyWeaponObj:FindFirstChild("Reloading") or _G.EnemyWeaponObj:GetAttribute("Reloading") == true) then
+                    _G.DetectedStateTextString = "RELOADING..."
+                    _G.DetectedStateColor3 = Color3.fromRGB(245, 20, 20) -- Тревожный алый цвет
+                
+                -- Б. Проверка на кандалы/наручники (Handcuffed) через твой Hostile-пак из 12Б
+                elseif _G.PChar:FindFirstChild("Handcuffs") or _G.PChar:FindFirstChild("Chain") or _G.PChar:GetAttribute("Handcuffed") == true then
+                    _G.DetectedStateTextString = "HANDCUFFED"
+                    _G.DetectedStateColor3 = Color3.fromRGB(255, 140, 0) -- Насыщенный оранжевый
+                
+                -- В. Проверка на бунтаря (Hostile)
+                elseif _G.FatalityIsHostileCheckPrivate and _G.FatalityIsHostileCheckPrivate(_G.PChar) then
+                    _G.DetectedStateTextString = "HOSTILE (REBEL)"
+                    _G.DetectedStateColor3 = Color3.fromRGB(0, 230, 100) -- Неоново-зеленый
+                end
+                
+                -- Если статус определен, выводим его на экран
+                if _G.DetectedStateTextString ~= "" then
+                    _G.TextESP.StateText.Text = _G.DetectedStateTextString
+                    _G.TextESP.StateText.Color = _G.DetectedStateColor3
+                    _G.TextESP.StateText.Position = Vector2.new(_G.FeetPos2D.X, _G.FeetPos2D.Y + _G.TextYOffsetModifierPrivate)
+                    _G.TextESP.StateText.Visible = true
+                else
+                    _G.TextESP.StateText.Visible = false
+                end
+            else
+                _G.TextESP.StateText.Visible = false
+            end
+        else
+            if _G.FatalityTextEspRegistryPrivate[player] then
+                _G.FatalityTextEspRegistryPrivate[player].NameText.Visible = false
+                _G.FatalityTextEspRegistryPrivate[player].ToolText.Visible = false
+                _G.FatalityTextEspRegistryPrivate[player].StateText.Visible = false
+            end
+        end
+    end
+end)
+
+print("Часть 5Г (Рендеринг HUD Ников, Предметов и Статусов врагов) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 6А: СЕТКА ИНТЕРФЕЙСА SPEED CHANGER И НАСТРОЙКИ
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local CombatPage = _G.FatalityAllPages["Combat"]
+
+-- [1. ИНИЦИАЛИЗАЦИЯ ТАБЛИЦЫ КОНФИГОВ ПОД ЧИСТЫЙ СПИДХАК]
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.speedEnabled = false      -- Флаг включения спидхака
+_G.cfg.speedMultiplier = 2.4     -- Множитель скорости разгона (2.4 - дефолт)
+
+-- [2. ГЕНЕРАЦИЯ КАРТОЧКИ В МЕНЮ FATALITY (ПРАВАЯ КОЛОНКА COMBAT)]
+-- Сместили Y на 130 и увеличили высоту до 150, чтобы полностью убрать наложение текста
+local SpeedBox = _G.cBubble(CombatPage, UDim2.new(0, 385, 0, 150), UDim2.new(0, 415, 0, 130), "Speed Hack Suite")
+
+-- Переключатель и слайдер для точной настройки скорости бега
+_G.cToggle(SpeedBox, "Enable Legit Speed Changer", false, function(state) 
+    _G.cfg.speedEnabled = state 
+end)
+
+_G.cSlider(SpeedBox, "Speed Power (Multiplier)", 1.0, 5.0, 2.4, function(value) 
+    _G.cfg.speedMultiplier = value 
+end)
+
+-- [3. ПОТОК-ЗАГЛУШКА ДЛЯ ПРЕДОТВРАЩЕНИЯ КРАШЕЙ]
+if _G.FatalitySilentConn then pcall(function() _G.FatalitySilentConn:Disconnect() end) end
+_G.FatalitySilentConn = RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalitySilentConn then _G.FatalitySilentConn:Disconnect() end
+        return
+    end
+end)
+
+-- Интеграция очистки в кнопку паники END
+local oldSpeedUiUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldSpeedUiUnload then pcall(oldSpeedUiUnload) end
+    if _G.FatalitySilentConn then pcall(function() _G.FatalitySilentConn:Disconnect() end) end
+end
+
+print("Часть 6А (Фикс наложения элементов Speed Changer) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 6Б: ОБХОД АНТИЧИТА СКОРОСТИ (PRISON LIFE BYPASS)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- [ВЕЧНЫЙ ЦИКЛ БЕЗОПАСНОГО РАЗГОНА ЧЕРЕЗ CFRAME СМЕЩЕНИЕ]
+if _G.FatalitySpeedHackConn then pcall(function() _G.FatalitySpeedHackConn:Disconnect() end) end
+_G.FatalitySpeedHackConn = RunService.RenderStepped:Connect(function(deltaTime)
+    -- Если главная панель или чит удалены кнопкой END – глушим поток
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalitySpeedHackConn then _G.FatalitySpeedHackConn:Disconnect() end
+        return
+    end
+
+    -- Проверяем, включен ли разгон в настройках
+    if _G.cfg and _G.cfg.speedEnabled then
+        local Character = LocalPlayer.Character
+        local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+        
+        -- Спидхак работает только если персонаж живой и куда-то идет
+        if Character and RootPart and Humanoid and Humanoid.Health > 0 then
+            if Humanoid.MoveDirection.Magnitude > 0 then
+                
+                -- Берем точный множитель из слайдера меню
+                local currentMult = _G.cfg.speedMultiplier or 2.4
+                local dt = math.clamp(deltaTime, 0, 0.03)
+                
+                -- Рассчитываем микро-шаг смещения вперед по вектору движения
+                local moveOffset = Humanoid.MoveDirection * (currentMult * 15 * dt)
+                
+                -- Сдвигаем CFrame позиции в обход античита
+                RootPart.CFrame = RootPart.CFrame + moveOffset
+                
+            end
+        end
+    end
+end)
+
+-- Интеграция отключения спидхака в кнопку паники END
+local oldSpeedUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldSpeedUnload then pcall(oldSpeedUnload) end
+    if _G.FatalitySpeedHackConn then pcall(function() _G.FatalitySpeedHackConn:Disconnect() end) end
+    print("[Fatality Speed] Поток спидхака успешно отключен!")
+end
+
+print("Ультимативная Часть 6Б (Bypass Speed Changer) успешно загружена!")
+-- =============================================================================
+-- FATALITY VISUALS — ЧАСТЬ 7А: СЕТКА ИНТЕРФЕЙСА ANTI-AIM И INF STAMINA
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local CombatPage = _G.FatalityAllPages["Combat"]
+
+-- [1. ИНИЦИАЛИЗАЦИЯ И РАСШИРЕНИЕ ТАБЛИЦЫ КОНФИГОВ]
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.aaEnabled = false         -- Включение анти-аима
+_G.cfg.aaSpeed = 25              -- Скорость вращения
+_G.cfg.aaOnlyAir = false         -- Крутилка только в воздухе
+_G.cfg.infStamina = false        -- ИСПРАВЛЕННЫЙ ФЛАГ: Бесконечная стамина
+
+-- [2. ГЕНЕРАЦИЯ КАРТОЧКИ ANTI-AIM (ПРАВАЯ КОЛОНКА COMBAT)]
+local AntiAimBox = _G.cBubble(CombatPage, UDim2.new(0, 385, 0, 180), UDim2.new(0, 415, 0, 300), "Anti-Aim Suite")
+
+_G.cToggle(AntiAimBox, "Enable Spinbot Anti-Aim", false, function(state) _G.cfg.aaEnabled = state end)
+_G.cToggle(AntiAimBox, "Enable Spin Only in Air", false, function(state) _G.cfg.aaOnlyAir = state end)
+_G.cSlider(AntiAimBox, "Spinbot Speed", 5, 100, 25, function(value) _G.cfg.aaSpeed = value end)
+
+-- [3. ГЕНЕРАЦИЯ КАРТОЧКИ INF STAMINA (СТРОГО НИЖЕ НА Y = 490)]
+local MiscCombatBox = _G.cBubble(CombatPage, UDim2.new(0, 385, 0, 95), UDim2.new(0, 415, 0, 490), "Movement Exploits")
+
+_G.cToggle(MiscCombatBox, "Enable Infinite Stamina (No Fatigue)", false, function(state) 
+    _G.cfg.infStamina = state 
+end)
+
+-- [4. ПОТОК-ЗАГЛУШКА ДЛЯ ИНТЕРФЕЙСА]
+if _G.FatalityAntiAimUiConn then pcall(function() _G.FatalityAntiAimUiConn:Disconnect() end) end
+_G.FatalityAntiAimUiConn = RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityAntiAimUiConn then _G.FatalityAntiAimUiConn:Disconnect() end
+        return
+    end
+end)
+
+local oldAaUiUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldAaUiUnload then pcall(oldAaUiUnload) end
+    if _G.FatalityAntiAimUiConn then pcall(function() _G.FatalityAntiAimUiConn:Disconnect() end) end
+end
+
+print("Часть 7А (Интерфейс Anti-Aim и Inf Stamina) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 7Б: ЛОГИКА SPINBOT & INFINITE STAMINA CORE
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Функция физического кручения
+local function updatePhysicsSpin(character, enable, speed)
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    local bodyAV = rootPart:FindFirstChild("FatalitySpinVelocity")
+    if enable then
+        if not bodyAV then
+            bodyAV = Instance.new("BodyAngularVelocity")
+            bodyAV.Name = "FatalitySpinVelocity"
+            bodyAV.MaxTorque = Vector3.new(0, math.huge, 0)
+            bodyAV.Parent = rootPart
+        end
+        bodyAV.AngularVelocity = Vector3.new(0, speed * 0.4, 0)
+    else
+        if bodyAV then bodyAV:Destroy() end
+    end
+end
+
+-- [1. ВЕЧНЫЙ ЦИКЛ АНТИ-АИМА]
+if _G.FatalityAntiAimLogicConn then pcall(function() _G.FatalityAntiAimLogicConn:Disconnect() end) end
+_G.FatalityAntiAimLogicConn = RunService.RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityAntiAimLogicConn then _G.FatalityAntiAimLogicConn:Disconnect() end
+        return
+    end
+
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    
+    if Character and Humanoid and Humanoid.Health > 0 then
+        if _G.cfg and _G.cfg.aaEnabled then
+            if _G.cfg.aaOnlyAir then
+                local currentState = Humanoid:GetState()
+                if currentState ~= Enum.HumanoidStateType.Jumping and currentState ~= Enum.HumanoidStateType.Freefall then
+                    updatePhysicsSpin(Character, false)
+                    return
+                end
+            end
+            updatePhysicsSpin(Character, true, _G.cfg.aaSpeed or 25)
+        else updatePhysicsSpin(Character, false) end
+    else updatePhysicsSpin(Character, false) end
+end)
+
+-- [2. ХЕНДЛЕР ЗАМОРОЗКИ СТАМИНЫ ПРИ БЕГЕ]
+if _G.FatalityStaminaLoop then _G.FatalityStaminaLoop = false end
+_G.FatalityStaminaLoop = true
+
+task.spawn(function()
+    while _G.FatalityStaminaLoop do
+        task.wait(0.1) -- Быстрый опрос памяти, чтобы стамина не успевала просесть ни на процент
+        
+        if _G.cfg and _G.cfg.infStamina then
+            pcall(function()
+                -- 1. Обход через реестр локальных объектов игрока (Самый частый метод в Prison Life)
+                local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+                local mainGui = playerGui and playerGui:FindFirstChild("MainGui")
+                
+                -- Ломаем проверку стамины в локальных переменных интерфейса игры
+                if mainGui and mainGui:FindFirstChild("Stamina") then
+                    mainGui.Stamina.Value = 100
+                end
+                
+                -- 2. Универсальный обход: ищем любые NumberValue/IntValue с именем Stamina в персонаже
+                local character = LocalPlayer.Character
+                if character then
+                    for _, object in ipairs(character:GetDescendants()) do
+                        if (object:IsA("NumberValue") or object:IsA("IntValue")) and (object.Name == "Stamina" or object.Name == "Energy") then
+                            object.Value = 100
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- Интеграция отключения в кнопку паники END
+local oldAaLogicUnload = _G.clearAllDrawingObjectsPrivate
+_G.clearAllDrawingObjectsPrivate = function()
+    if oldAaLogicUnload then pcall(oldAaLogicUnload) end
+    if _G.FatalityAntiAimLogicConn then pcall(function() _G.FatalityAntiAimLogicConn:Disconnect() end) end
+    _G.FatalityStaminaLoop = false
+    
+    pcall(function()
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local bodyAV = root and root:FindFirstChild("FatalitySpinVelocity")
+        if bodyAV then bodyAV:Destroy() end
+    end)
+    print("[Fatality Core] Крутилка и Бесконечная стамина успешно отключены!")
+end
+
+print("Ультимативная Часть 7Б (Infinite Stamina Bypass) успешно загружена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 8: 3D RIG CUBE ESP (GLOBAL BYPASS — 0% LOCAL REGISTERS)
+-- =============================================================================
+
+-- Полностью очищаем старый кэш, если он остался в глобальной памяти
+if _G.Fatality3dBoxRegistryPrivate then
+    pcall(function()
+        for _, lines in pairs(_G.Fatality3dBoxRegistryPrivate) do
+            for _, line in ipairs(lines) do line.Visible = false; line:Remove() end
+        end
+    end)
+end
+
+_G.Fatality3dBoxRegistryPrivate = {}
+
+-- Переносим функции в глобальную область, чтобы обойти ошибку лимита 200 регистров
+_G.FatalityClearLinesForPlayer = function(player)
+    if _G.Fatality3dBoxRegistryPrivate and _G.Fatality3dBoxRegistryPrivate[player] then
+        for _, line in ipairs(_G.Fatality3dBoxRegistryPrivate[player]) do 
+            line.Visible = false; line:Remove() 
+        end
+        _G.Fatality3dBoxRegistryPrivate[player] = nil
+    end
+end
+
+_G.FatalityGetOrCreate3dLines = function(player)
+    if _G.Fatality3dBoxRegistryPrivate[player] then return _G.Fatality3dBoxRegistryPrivate[player] end
+    
+    _G.Temp3dLinesTable = {}
+    for i = 1, 12 do
+        _G.TempLineObj = Drawing.new("Line")
+        _G.TempLineObj.Visible = false
+        _G.TempLineObj.Thickness = 1.5
+        _G.TempLineObj.Transparency = 1
+        _G.TempLineObj.Color = Color3.fromRGB(245, 20, 20)
+        table.insert(_G.Temp3dLinesTable, _G.TempLineObj)
+    end
+    
+    _G.Fatality3dBoxRegistryPrivate[player] = _G.Temp3dLinesTable
+    return _G.Temp3dLinesTable
+end
+
+_G.FatalityForceClearAll3dBoxes = function()
+    if _G.Fatality3dBoxRegistryPrivate then
+        for _, lines in pairs(_G.Fatality3dBoxRegistryPrivate) do
+            for _, line in ipairs(lines) do line.Visible = false; line:Remove() end
+        end
+        _G.Fatality3dBoxRegistryPrivate = {}
+    end
+end
+
+-- Переподключаем слушатель выхода игроков через глобальный линк
+if _G.Fatality3dPlayerLeaveConn then pcall(function() _G.Fatality3dPlayerLeaveConn:Disconnect() end) end
+_G.Fatality3dPlayerLeaveConn = game:GetService("Players").PlayerRemoving:Connect(_G.FatalityClearLinesForPlayer)
+
+-- [ВЕЧНЫЙ ПОТОК РЕНДЕРИНГА НА 100% ГЛОБАЛЬНЫХ ПЕРЕМЕННЫХ]
+if _G.Fatality3dBoxConn then pcall(function() _G.Fatality3dBoxConn:Disconnect() end) end
+_G.Fatality3dBoxConn = game:GetService("RunService").RenderStepped:Connect(function()
+    -- Авто-выгрузка, если меню закрыто кнопкой END
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        _G.FatalityForceClearAll3dBoxes()
+        if _G.Fatality3dPlayerLeaveConn then pcall(function() _G.Fatality3dPlayerLeaveConn:Disconnect() end) end
+        if _G.Fatality3dBoxConn then _G.Fatality3dBoxConn:Disconnect() end
+        return
+    end
+    
+    if _G.cfgVisualsPro and _G.cfgVisualsPro.draw3dBox then
+        for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+            _G.TChar = player.Character
+            _G.TRoot = _G.TChar and _G.TChar:FindFirstChild("HumanoidRootPart")
+            _G.THum = _G.TChar and _G.TChar:FindFirstChildOfClass("Humanoid")
+            
+            if _G.TChar and _G.TRoot and _G.THum and _G.THum.Health > 0 and player ~= game:GetService("Players").LocalPlayer then
+                _G.CurrentPlayerLines = _G.FatalityGetOrCreate3dLines(player)
+                _G.BoxSizeVector = Vector3.new(4, 5, 2.5) -- Пропорции R6 хитбокса Prison Life
+                _G.MainRootCFrame = _G.TRoot.CFrame
+                
+                -- Вычисляем 8 вершин 3D куба без использования ключевого слова local
+                _G.V3D = {
+                    _G.MainRootCFrame * CFrame.new(-_G.BoxSizeVector.X/2,  _G.BoxSizeVector.Y/2, -_G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new( _G.BoxSizeVector.X/2,  _G.BoxSizeVector.Y/2, -_G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new( _G.BoxSizeVector.X/2, -_G.BoxSizeVector.Y/2, -_G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new(-_G.BoxSizeVector.X/2, -_G.BoxSizeVector.Y/2, -_G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new(-_G.BoxSizeVector.X/2,  _G.BoxSizeVector.Y/2,  _G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new( _G.BoxSizeVector.X/2,  _G.BoxSizeVector.Y/2,  _G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new( _G.BoxSizeVector.X/2, -_G.BoxSizeVector.Y/2,  _G.BoxSizeVector.Z/2).Position,
+                    _G.MainRootCFrame * CFrame.new(-_G.BoxSizeVector.X/2, -_G.BoxSizeVector.Y/2,  _G.BoxSizeVector.Z/2).Position
+                }
+                
+                _G.ScreenPointsList = {}
+                _G.IsCubeOnScreen = true
+                
+                for i = 1, 8 do
+                    _G.P2D, _G.OnScr = workspace.CurrentCamera:WorldToViewportPoint(_G.V3D[i])
+                    _G.ScreenPointsList[i] = Vector2.new(_G.P2D.X, _G.P2D.Y)
+                    if not _G.OnScr then _G.IsCubeOnScreen = false end
+                end
+                
+                if _G.IsCubeOnScreen then
+                    _G.FactionBoxColor = Color3.fromRGB(245, 20, 20)
+                    if player.Team then
+                        _G.TeamNameStr = player.Team.Name
+                        if _G.TeamNameStr == "Criminals" then _G.FactionBoxColor = Color3.fromRGB(245, 20, 20)
+                        elseif _G.TeamNameStr == "Guards" or _G.TeamNameStr == "Police" then _G.FactionBoxColor = Color3.fromRGB(0, 120, 255)
+                        elseif _G.TeamNameStr == "Inmates" then _G.FactionBoxColor = Color3.fromRGB(255, 140, 0) end
+                    end
+                    
+                    for _, line in ipairs(_G.CurrentPlayerLines) do line.Color = _G.FactionBoxColor; line.Visible = true end
+                    
+                    -- Соединяем 12 ребер 3D Rig куба
+                    _G.CurrentPlayerLines[1].From = _G.ScreenPointsList[1]; _G.CurrentPlayerLines[1].To = _G.ScreenPointsList[2]
+                    _G.CurrentPlayerLines[2].From = _G.ScreenPointsList[2]; _G.CurrentPlayerLines[2].To = _G.ScreenPointsList[3]
+                    _G.CurrentPlayerLines[3].From = _G.ScreenPointsList[3]; _G.CurrentPlayerLines[3].To = _G.ScreenPointsList[4]
+                    _G.CurrentPlayerLines[4].From = _G.ScreenPointsList[4]; _G.CurrentPlayerLines[4].To = _G.ScreenPointsList[1]
+                    
+                    _G.CurrentPlayerLines[5].From = _G.ScreenPointsList[5]; _G.CurrentPlayerLines[5].To = _G.ScreenPointsList[6]
+                    _G.CurrentPlayerLines[6].From = _G.ScreenPointsList[6]; _G.CurrentPlayerLines[6].To = _G.ScreenPointsList[7]
+                    _G.CurrentPlayerLines[7].From = _G.ScreenPointsList[7]; _G.CurrentPlayerLines[7].To = _G.ScreenPointsList[8]
+                    _G.CurrentPlayerLines[8].From = _G.ScreenPointsList[8]; _G.CurrentPlayerLines[8].To = _G.ScreenPointsList[5]
+                    
+                    _G.CurrentPlayerLines[9].From = _G.ScreenPointsList[1]; _G.CurrentPlayerLines[9].To = _G.ScreenPointsList[5]
+                    _G.CurrentPlayerLines[10].From = _G.ScreenPointsList[2]; _G.CurrentPlayerLines[10].To = _G.ScreenPointsList[6]
+                    _G.CurrentPlayerLines[11].From = _G.ScreenPointsList[3]; _G.CurrentPlayerLines[11].To = _G.ScreenPointsList[7]
+                    _G.CurrentPlayerLines[12].From = _G.ScreenPointsList[4]; _G.CurrentPlayerLines[12].To = _G.ScreenPointsList[8]
+                else
+                    if _G.Fatality3dBoxRegistryPrivate[player] then
+                        for _, line in ipairs(_G.Fatality3dBoxRegistryPrivate[player]) do line.Visible = false end
+                    end
+                end
+            else
+                if _G.Fatality3dBoxRegistryPrivate[player] then
+                    for _, line in ipairs(_G.Fatality3dBoxRegistryPrivate[player]) do line.Visible = false end
+                end
+            end
+        end
+    else
+        _G.FatalityForceClearAll3dBoxes()
+    end
+end)
+
+print("Уникальная Часть 8 (Глобальный 3D Rig ESP) успешно загружена без регистровой ошибки!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 8Б: ЛОГИКА МИКРО-ОБВОДКИ КАРТЫ (GLOBAL BYPASS — 0% LOCAL)
+-- =============================================================================
+
+-- Полная принудительная очистка старых SelectionBox объектов из памяти
+if _G.FatalityFadeMapRegistryPrivate then
+    pcall(function()
+        for _, box in pairs(_G.FatalityFadeMapRegistryPrivate) do
+            if box and box.Parent then box:Destroy() end
+        end
+    end)
+end
+
+_G.FatalityFadeMapRegistryPrivate = {}
+
+-- Глобальная функция очистки обводки (Обходим ошибку лимита регистров)
+_G.FatalityGlobalClearMapHighlights = function()
+    if _G.FatalityFadeMapRegistryPrivate then
+        for part, box in pairs(_G.FatalityFadeMapRegistryPrivate) do
+            if box and box.Parent then box:Destroy() end
+        end
+        _G.FatalityFadeMapRegistryPrivate = {}
+    end
+end
+
+-- [ВЕЧНЫЙ ПОТОК ОБНОВЛЕНИЯ НА 100% ГЛОБАЛЬНЫХ ПЕРЕМЕННЫХ]
+if _G.FatalityWorldEspActiveConn then pcall(function() _G.FatalityWorldEspActiveConn:Disconnect() end) end
+_G.FatalityWorldEspActiveConn = game:GetService("RunService").RenderStepped:Connect(function()
+    -- Если меню удалено на кнопку END — глушим поток и сносим обводку
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        _G.FatalityGlobalClearMapHighlights()
+        if _G.FatalityWorldEspActiveConn then _G.FatalityWorldEspActiveConn:Disconnect() end
+        return
+    end
+
+    if _G.cfgVisualsPro and _G.cfgVisualsPro.partEspEnabled then
+        _G.CurrentScanDist = math.clamp(_G.cfgVisualsPro.partEspDistance or 15, 1, 30)
+        _G.CurrentLineThick = _G.cfgVisualsPro.partEspThickness or 0.015
+        
+        _G.MChar = game:GetService("Players").LocalPlayer.Character
+        _G.MRoot = _G.MChar and _G.MChar:FindFirstChild("HumanoidRootPart")
+        
+        if _G.MRoot then
+            _G.ActivePartsThisFrameTable = {}
+            _G.OverlapParamsObj = OverlapParams.new()
+            _G.OverlapParamsObj.FilterType = Enum.RaycastFilterType.Exclude
+            _G.OverlapParamsObj.FilterDescendantsInstances = {_G.MChar, workspace.CurrentCamera}
+            
+            -- Сканируем микро-зону 1-30 студов вокруг нашего персонажа
+            _G.PartsAroundMeList = workspace:GetPartBoundsInRadius(_G.MRoot.Position, _G.CurrentScanDist, _G.OverlapParamsObj)
+
+            for _, part in ipairs(_G.PartsAroundMeList) do
+                if part:IsA("BasePart") and part.Transparency < 1 and part.Size.Magnitude < 80 and not part:IsDescendantOf(game:GetService("Players")) then
+                    
+                    _G.BlockPlayerDistance = (_G.MRoot.Position - part.Position).Magnitude
+                    _G.DynamicFadeFactor = math.clamp(1 - (_G.BlockPlayerDistance / _G.CurrentScanDist), 0, 1)
+
+                    if _G.DynamicFadeFactor > 0.05 then
+                        _G.ActivePartsThisFrameTable[part] = true
+                        
+                        _G.TargetBoxObj = _G.FatalityFadeMapRegistryPrivate[part]
+                        if not _G.TargetBoxObj or not _G.TargetBoxObj.Parent then
+                            _G.TargetBoxObj = Instance.new("SelectionBox")
+                            _G.TargetBoxObj.Name = "FatalityLegitFadeBox"
+                            _G.TargetBoxObj.Adornee = part
+                            _G.TargetBoxObj.Parent = part
+                            _G.FatalityFadeMapRegistryPrivate[part] = _G.TargetBoxObj
+                        end
+
+                        _G.BaseAimbotColor = Color3.fromRGB(235, 20, 20) -- Фирменный алый стиль Fatality
+                        _G.CalculatedFadedColor = _G.BaseAimbotColor:Lerp(Color3.fromRGB(12, 5, 5), 1 - _G.DynamicFadeFactor)
+
+                        _G.TargetBoxObj.Visible = true
+                        _G.TargetBoxObj.Color3 = _G.CalculatedFadedColor
+                        _G.TargetBoxObj.LineThickness = (_G.CurrentLineThick * 1.5) * _G.DynamicFadeFactor
+                        _G.TargetBoxObj.Transparency = 1 - _G.DynamicFadeFactor
+                    else
+                        if _G.FatalityFadeMapRegistryPrivate[part] then 
+                            _G.FatalityFadeMapRegistryPrivate[part].Visible = false 
+                        end
+                    end
+                end
+            end
+
+            -- Очистка памяти от блоков, от которых мы убежали
+            for part, box in pairs(_G.FatalityFadeMapRegistryPrivate) do
+                if not _G.ActivePartsThisFrameTable[part] then
+                    if box and box.Parent then box:Destroy() end
+                    _G.FatalityFadeMapRegistryPrivate[part] = nil
+                end
+            end
+        end
+    else
+        _G.FatalityGlobalClearMapHighlights()
+    end
+end)
+
+print("Часть 8Б (Глобальный легитный Map ESP) успешно загружена без регистровой ошибки!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 10: КРУТЯЩИЙСЯ И ПЛАВНО ЗАТУХАЮЩИЙ КРУГ ПРЫЖКА
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Полностью глобальная логика для безопасного инжекта без лимита регистров
+_G.FatalityHookJumpCircleLogic = function(character)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    local rootPart = character:WaitForChild("HumanoidRootPart", 5)
+    
+    if humanoid and rootPart then
+        humanoid.StateChanged:Connect(function(oldState, newState)
+            -- Срабатывает строго в момент прыжка, если тумблер активен
+            if newState == Enum.HumanoidStateType.Jumping and _G.cfg and _G.cfg.jumpCircle then
+                
+                -- Генерируем плоский диск на полу
+                _G.CirclePartObj = Instance.new("Part")
+                _G.CirclePartObj.Name = "FatalityRotatedJumpCircle"
+                _G.CirclePartObj.Size = Vector3.new(0.2, 0.1, 0.2)
+                -- Сажаем строго на пол под ноги нашего придурка
+                _G.CirclePartObj.Position = rootPart.Position - Vector3.new(0, 2.9, 0)
+                _G.CirclePartObj.Transparency = 1
+                _G.CirclePartObj.Anchored = true
+                _G.CirclePartObj.CanCollide = false
+                _G.CirclePartObj.Parent = workspace
+                
+                -- Накатываем оригинальную текстуру логотипа спавна из ресурсов Roblox
+                _G.CircleDecalObj = Instance.new("Decal", _G.CirclePartObj)
+                _G.CircleDecalObj.Face = Enum.NormalId.Top
+                _G.CircleDecalObj.Texture = "rbxassetid://11843372271"
+                _G.CircleDecalObj.Color3 = Color3.fromRGB(235, 20, 20) -- Фирменный алый
+                _G.CircleDecalObj.Transparency = 0.2 -- Стартовая сочность
+                
+                -- Настройки времени и анимации
+                _G.MaxRadiusSize = _G.cfg.jumpCircleRadius or 10
+                _G.EffectTweenInfo = TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                
+                -- Запускаем плавное радиальное расширение круга
+                _G.ExpandTweenAction = TweenService:Create(_G.CirclePartObj, _G.EffectTweenInfo, {
+                    Size = Vector3.new(_G.MaxRadiusSize, 0.1, _G.MaxRadiusSize)
+                })
+                
+                -- Запускаем идеальное бесшовное растворение текстуры спавна
+                _G.FadeTweenAction = TweenService:Create(_G.CircleDecalObj, _G.EffectTweenInfo, {
+                    Transparency = 1
+                })
+                
+                _G.ExpandTweenAction:Play()
+                _G.FadeTweenAction:Play()
+                
+                -- [БЕШЕНОЕ ВРАЩЕНИЕ КРУГА ПРИ РАЗЛЁТЕ]
+                local targetPart = _G.CirclePartObj
+                local currentRotationAngle = 0
+                local rotationSpeed = 350 -- Скорость кручения (градусы в секунду)
+                
+                local spinConnection
+                spinConnection = RunService.Heartbeat:Connect(function(deltaTime)
+                    if targetPart and targetPart.Parent then
+                        currentRotationAngle = (currentRotationAngle + (rotationSpeed * deltaTime)) % 360
+                        targetPart.CFrame = CFrame.new(targetPart.Position) * CFrame.Angles(0, math.rad(currentRotationAngle), 0)
+                    else
+                        if spinConnection then spinConnection:Disconnect() end
+                    end
+                end)
+                
+                -- Полная зачистка объектов и потоков из памяти через 0.7 сек
+                task.delay(0.7, function()
+                    if spinConnection then spinConnection:Disconnect() end
+                    if targetPart then targetPart:Destroy() end
+                end)
+            end
+        end)
+    end
+end
+
+-- Инициализация на текущего персонажа и респавны
+if LocalPlayer.Character then task.spawn(_G.FatalityHookJumpCircleLogic, LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.spawn(_G.FatalityHookJumpCircleLogic, char)
+end)
+
+print("Ультимативная Часть 10 (Spinning & Fading Jump Circle) успешно загружена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 11Б: ИСПРАВЛЕНИЕ ЦВЕТА ЧАМСОВ (ОЧИСТКА ТЕКСТУР ОРУЖИЯ)
+--=============================================================================
+
+_G.FatalityApplyChamsToModelParts = function(toolModel, enable)
+    for _, part in ipairs(toolModel:GetDescendants()) do
+        if part:IsA("BasePart") or part:IsA("MeshPart") then
+            if enable then
+                -- Безопасно сохраняем дефолтные текстуры и цвета оружия
+                if not part:FindFirstChild("FatalityOrigMat") then
+                    _G.OrigMat = Instance.new("StringValue", part)
+                    _G.OrigMat.Name = "FatalityOrigMat"
+                    _G.OrigMat.Value = tostring(part.Material.Value)
+                    
+                    _G.OrigColor = Instance.new("Color3Value", part)
+                    _G.OrigColor.Name = "FatalityOrigColor"
+                    _G.OrigColor.Value = part.Color
+                    
+                    -- Сейвим текстуру сетки, если она есть
+                    if part:IsA("MeshPart") and part.TextureID ~= "" then
+                        _G.OrigTex = Instance.new("StringValue", part)
+                        _G.OrigTex.Name = "FatalityOrigTex"
+                        _G.OrigTex.Value = part.TextureID
+                    end
+                end
+                
+                -- [ХАК КРАСКИ]: Насильно стираем текстуру, чтобы цвет залил пушку полностью
+                if part:IsA("MeshPart") then 
+                    part.TextureID = "" 
+                end
+                
+                -- Поджигаем неоновый глянец
+                part.Material = Enum.Material.Neon
+                part.Color = Color3.fromRGB(255, 10, 10) -- Сделали алый цвет еще более ярким
+                
+                if part:IsA("BasePart") then 
+                    part.Transparency = _G.cfgVisualsPro and _G.cfgVisualsPro.weaponChamsOpacity or 0.2 
+                end
+            else
+                -- Возвращаем пушке исходный вид, если галочка выключена
+                if part:FindFirstChild("FatalityOrigMat") and part:FindFirstChild("FatalityOrigColor") then
+                    part.Material = Enum.Material[part.FatalityOrigMat.Value]
+                    part.Color = part.FatalityOrigColor.Value
+                    part.Transparency = 0
+                    
+                    if part:IsA("MeshPart") and part:FindFirstChild("FatalityOrigTex") then
+                        part.TextureID = part.FatalityOrigTex.Value
+                        part.FatalityOrigTex:Destroy()
+                    end
+                    
+                    part.FatalityOrigMat:Destroy()
+                    part.FatalityOrigColor:Destroy()
+                end
+            end
+        end
+    end
+end
+
+if _G.FatalityWeaponChamsConnection then pcall(function() _G.FatalityWeaponChamsConnection:Disconnect() end) end
+_G.FatalityWeaponChamsConnection = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityWeaponChamsConnection then _G.FatalityWeaponChamsConnection:Disconnect() end
+        return
+    end
+
+    _G.ChamsActiveFlag = _G.cfgVisualsPro and _G.cfgVisualsPro.weaponChamsEnabled or false
+
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        _G.PlrChar = player.Character
+        if _G.PlrChar then
+            _G.HeldTool = _G.PlrChar:FindFirstChildOfClass("Tool")
+            if _G.HeldTool then
+                _G.FatalityApplyChamsToModelParts(_G.HeldTool, _G.ChamsActiveFlag)
+            end
+        end
+    end
+end)
+
+print("Часть 11Б (Фикс цвета текстур) успешно обновлена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12А1: ОЧИЩЕННЫЙ ИНТЕРФЕЙС SILENT AIM (БЕЗ ТАЗЕР ВАЛЛА)
+--=============================================================================
+
+if not _G.cfg then _G.cfg = {} end
+if _G.cfg.fov360Mode == nil then _G.cfg.fov360Mode = false end
+_G.SilentAimLoopGuard = false 
+_G.FatalitySilentMethodsNames = {"Raycast", "FindPartOnRayWithIgnoreList", "FindPartOnRay", "Mouse.Hit/Target"}
+
+_G.CombatPageRefPrivate = _G.FatalityAllPages["Combat"] or _G.MainPagesContainer
+
+if _G.CombatPageRefPrivate then
+    _G.OldSilentBubble = _G.CombatPageRefPrivate:FindFirstChild("SilentAimSuiteBubble")
+    if _G.OldSilentBubble then _G.OldSilentBubble:Destroy() end
+end
+
+-- ВЕРНУЛИ КАРТОЧКЕ СТАНДАРТНУЮ ВЫСОТУ 440 ПИКСЕЛЕЙ (БЕЗ ТАЗЕР-ВАЛЛА)
+_G.SilentAimBox = _G.cBubble(_G.CombatPageRefPrivate, UDim2.new(0, 385, 0, 440), UDim2.new(0, 20, 0, 360), "Silent Aim Suite")
+
+_G.cToggle(_G.SilentAimBox, "Enable Silent Aim", false, function(state) _G.cfg.silentEn = state end)
+_G.cToggle(_G.SilentAimBox, "Team Check (Anti-Police)", false, function(state) _G.cfg.silentTeam = state end)
+_G.cToggle(_G.SilentAimBox, "Visible Check (Wall)", false, function(state) _G.cfg.silentWall = state end)
+_G.cToggle(_G.SilentAimBox, "Show Silent Target Box", false, function(state) _G.cfg.silentShowTarget = state end)
+_G.cToggle(_G.SilentAimBox, "Render FOV Circle Radius", false, function(state) _G.cfg.silentDrawFov = state end)
+_G.cToggle(_G.SilentAimBox, "Enable Aim Motion Prediction", false, function(state) _G.cfg.silentPredict = state end)
+_G.cToggle(_G.SilentAimBox, "Enable Full 360 FOV Mode", false, function(state) _G.cfg.fov360Mode = state end)
+
+_G.cSlider(_G.SilentAimBox, "Silent Aim FOV Radius", 10, 400, 130, function(val) _G.cfg.silentFov = val end)
+_G.cSlider(_G.SilentAimBox, "Hit Chance Percentage", 1, 100, 100, function(val) _G.cfg.silentChance = val end)
+_G.cSlider(_G.SilentAimBox, "Prediction Velocity Amount", 0.05, 0.5, 0.165, function(val) _G.cfg.silentPredictAmt = val end)
+
+_G.PartFrame = Instance.new("Frame")
+_G.PartFrame.Name = "SilentPartFrame"; _G.PartFrame.Size = UDim2.new(1, 0, 0, 24); _G.PartFrame.BackgroundTransparency = 1; _G.PartFrame.Parent = _G.SilentAimBox
+_G.PartLabel = Instance.new("TextLabel", _G.PartFrame)
+_G.PartLabel.Size = UDim2.new(0, 120, 1, 0); _G.PartLabel.BackgroundTransparency = 1; _G.PartLabel.Text = "Target Bone Part:"; _G.PartLabel.TextColor3 = Color3.fromRGB(150, 160, 160); _G.PartLabel.Font = Enum.Font.GothamSemibold; _G.PartLabel.TextSize = 12; _G.PartLabel.TextXAlignment = Enum.TextXAlignment.Left
+_G.PartButton = Instance.new("TextButton", _G.PartFrame)
+_G.PartButton.Size = UDim2.new(1, -130, 1, 0); _G.PartButton.Position = UDim2.new(0, 120, 0, 0); _G.PartButton.BackgroundColor3 = Color3.fromRGB(14, 14, 16); _G.PartButton.Text = "HumanoidRootPart"; _G.PartButton.TextColor3 = Color3.fromRGB(245, 20, 20); _G.PartButton.Font = Enum.Font.GothamBold; _G.PartButton.TextSize = 11
+_G.PartStroke = Instance.new("UIStroke", _G.PartButton); _G.PartStroke.Color = Color3.fromRGB(45, 45, 50)
+_G.PartCorner = Instance.new("UICorner", _G.PartButton); _G.PartCorner.CornerRadius = UDim.new(0, 6)
+
+_G.PartButton.MouseButton1Click:Connect(function()
+    if _G.cfg.silentPart == "HumanoidRootPart" then _G.cfg.silentPart = "Head"; _G.PartButton.Text = "HEAD (Bone)"
+    elseif _G.cfg.silentPart == "Head" then _G.cfg.silentPart = "Random"; _G.PartButton.Text = "RANDOM (HvH Mix)"
+    else _G.cfg.silentPart = "HumanoidRootPart"; _G.PartButton.Text = "TORSO (Root)" end
+end)
+print("12А1 обновлена")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12А2: ВЕЧНЫЙ ГРАФИЧЕСКИЙ ПОТОК ОВЕРЛЕЕВ И FOV [NO LOCAL]
+--=============================================================================
+
+if _G.FatalityAimMouseBoxPrivate then pcall(function() _G.FatalityAimMouseBoxPrivate.Visible = false; _G.FatalityAimMouseBoxPrivate:Remove() end) end
+if _G.FatalityAimFovCirclePrivate then pcall(function() _G.FatalityAimFovCirclePrivate.Visible = false; _G.FatalityAimFovCirclePrivate:Remove() end) end
+
+_G.FatalityAimMouseBoxPrivate = Drawing.new("Square")
+_G.FatalityAimMouseBoxPrivate.Visible = false; _G.FatalityAimMouseBoxPrivate.ZIndex = 999; _G.FatalityAimMouseBoxPrivate.Color = Color3.fromRGB(54, 57, 241); _G.FatalityAimMouseBoxPrivate.Thickness = 2; _G.FatalityAimMouseBoxPrivate.Size = Vector2.new(14, 16); _G.FatalityAimMouseBoxPrivate.Filled = false 
+
+_G.FatalityAimFovCirclePrivate = Drawing.new("Circle")
+_G.FatalityAimFovCirclePrivate.Thickness = 1.5; _G.FatalityAimFovCirclePrivate.NumSides = 60; _G.FatalityAimFovCirclePrivate.Filled = false; _G.FatalityAimFovCirclePrivate.Visible = false; _G.FatalityAimFovCirclePrivate.Transparency = 1; _G.FatalityAimFovCirclePrivate.Color = Color3.fromRGB(235, 20, 20)
+
+_G.FatalityCalculateHitChance = function(percentage)
+    _G.RndChance = math.floor(Random.new().NextNumber(Random.new(), 0, 1) * 100)
+    return _G.RndChance <= math.floor(percentage)
+end
+
+_G.FatalityGetDirectionVector = function(origin, target) return (target - origin).Unit * 1000 end
+
+_G.FatalityGetClosestPlayerToCursor = function()
+    _G.ClosestObj = nil
+    _G.MaxMDist = (_G.cfg and _G.cfg.fov360Mode) and 999999 or (_G.cfg and _G.cfg.silentFov or 130)
+    _G.LP = game:GetService("Players").LocalPlayer
+    _G.MRoot = _G.LP.Character and _G.LP.Character:FindFirstChild("HumanoidRootPart")
+    if not _G.MRoot then return nil end
+    
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        if p ~= _G.LP and p.Character and p.Character:FindFirstChildOfClass("Humanoid") and p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+            _G.BName = _G.cfg and _G.cfg.silentPart or "HumanoidRootPart"
+            if _G.BName == "Random" then _G.BName = (math.random(1, 2) == 1) and "Head" or "HumanoidRootPart" end
+            _G.TBone = p.Character:FindFirstChild(_G.BName)
+            
+            if _G.TBone then
+                _G.ValidT = true
+                if _G.cfg and _G.cfg.silentTeam and _G.LP.Team and p.Team then
+                    _G.MTN, _G.ETN = _G.LP.Team.Name, p.Team.Name
+                    if (_G.MTN == "Criminals" or _G.MTN == "Inmates") then
+                        if _G.ETN ~= "Police" then _G.ValidT = false end
+                    elseif (_G.MTN == "Police") then
+                        if _G.ETN ~= "Criminals" and _G.ETN ~= "Inmates" then _G.ValidT = false end
+                    end
+                end
+                
+                if _G.ValidT then
+                    _G.B2D, _G.OnScr = workspace.CurrentCamera:WorldToViewportPoint(_G.TBone.Position)
+                    if _G.cfg.fov360Mode then
+                        _G.Actual3DDist = (_G.MRoot.Position - _G.TBone.Position).Magnitude
+                        if _G.Actual3DDist < _G.MaxMDist then
+                            _G.ValidW = true
+                            if _G.cfg and _G.cfg.silentWall and #workspace.CurrentCamera:GetPartsObscuringTarget({_G.TBone.Position}, {_G.LP.Character, p.Character}) > 0 then _G.ValidW = false end
+                            if _G.ValidW then _G.MaxMDist = _G.Actual3DDist; _G.ClosestObj = _G.TBone end
+                        end
+                    else
+                        if _G.OnScr then
+                            _G.MDist = (Vector2.new(_G.B2D.X, _G.B2D.Y) - game:GetService("UserInputService"):GetMouseLocation()).Magnitude
+                            if _G.MDist < _G.MaxMDist then
+                                _G.ValidW = true
+                                if _G.cfg and _G.cfg.silentWall and #workspace.CurrentCamera:GetPartsObscuringTarget({_G.TBone.Position}, {_G.LP.Character, p.Character}) > 0 then _G.ValidW = false end
+                                if _G.ValidW then _G.MaxMDist = _G.MDist; _G.ClosestObj = _G.TBone end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return _G.ClosestObj
+end
+
+if _G.FatalityMonolithAimLoopConn then pcall(function() _G.FatalityMonolithAimLoopConn:Disconnect() end) end
+_G.FatalityMonolithAimLoopConn = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityAimMouseBoxPrivate then _G.FatalityAimMouseBoxPrivate.Visible = false end
+        if _G.FatalityAimFovCirclePrivate then _G.FatalityAimFovCirclePrivate.Visible = false end
+        _G.FatalityMonolithAimLoopConn:Disconnect() return
+    end
+
+    _G.IsSActive = _G.cfg and _G.cfg.silentEn or false
+    
+    if _G.IsSActive and _G.cfg.silentDrawFov and not _G.cfg.fov360Mode then
+        _G.FatalityAimFovCirclePrivate.Visible = true
+        _G.FatalityAimFovCirclePrivate.Radius = _G.cfg.silentFov or 130
+        _G.FatalityAimFovCirclePrivate.Position = game:GetService("UserInputService"):GetMouseLocation()
+    else _G.FatalityAimFovCirclePrivate.Visible = false end
+
+    _G.CBone = _G.FatalityGetClosestPlayerToCursor()
+    if _G.IsSActive and _G.CBone and _G.CBone.Parent then
+        _G.RPart = _G.CBone.Parent.PrimaryPart or _G.CBone.Parent:FindFirstChild("HumanoidRootPart")
+        if _G.RPart then
+            _G.R2D, _G.ROn = workspace.CurrentCamera:WorldToViewportPoint(_G.RPart.Position)
+            if _G.cfg.silentShowTarget then
+                _G.FatalityAimMouseBoxPrivate.Visible = _G.ROn
+                _G.FatalityAimMouseBoxPrivate.Position = Vector2.new(_G.R2D.X - 7, _G.R2D.Y - 8)
+            else _G.FatalityAimMouseBoxPrivate.Visible = false end
+        else _G.FatalityAimMouseBoxPrivate.Visible = false end
+    else _G.FatalityAimMouseBoxPrivate.Visible = false end
+end)
+print("12А2 готова")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12А3: СВЕРХТОЧНЫЙ СТАТУС-ЧЕК ДЛЯ SILENT AIM И АУРЫ
+--=============================================================================
+
+if _G.FatalityTacticalTriggerConnectionPrivate then pcall(function() _G.FatalityTacticalTriggerConnectionPrivate:Disconnect() end) end
+_G.FatalityTacticalTriggerConnectionPrivate = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityTacticalTriggerConnectionPrivate then _G.FatalityTacticalTriggerConnectionPrivate:Disconnect() end
+        return
+    end
+
+    if _G.cfg and _G.cfg.silentEn and _G.FatalityGetClosestPlayerToCursor then
+        _G.TrigTargetBone = _G.FatalityGetClosestPlayerToCursor()
+        
+        if _G.TrigTargetBone and _G.TrigTargetBone.Parent then
+            _G.L_Player = game:GetService("Players").LocalPlayer
+            _G.L_Char = _G.L_Player.Character
+            _G.ActiveTool = _G.L_Char and _G.L_Char:FindFirstChildOfClass("Tool")
+            _G.T_Model = _G.TrigTargetBone.Parent
+            _G.T_Player = game:GetService("Players"):FindFirstChild(_G.T_Model.Name)
+            
+            _G.ShouldTriggerFire = false
+            
+            if _G.ActiveTool and _G.L_Player.Team then
+                _G.MyTName = _G.L_Player.Team.Name
+                _G.ToolLower = _G.ActiveTool.Name:lower()
+                
+                _G.IsTaserOrCuffs = _G.ToolLower:find("taser") or _G.ToolLower:find("handcuff") or _G.ToolLower:find("cuff")
+                _G.IsWeaponGun = not _G.IsTaserOrCuffs and (_G.ToolLower:find("m4") or _G.ToolLower:find("remington") or _G.ToolLower:find("pistol") or _G.ToolLower:find("glock") or _G.ToolLower:find("ak"))
+                
+                -- [ГЛОБАЛЬНЫЙ СТАТУС-ЧЕК ЦЕЛИ]
+                _G.IsTargetHostile = _G.FatalityIsHostileCheckPrivate and _G.FatalityIsHostileCheckPrivate(_G.T_Model) or false
+                _G.IsTargetCuffed = _G.T_Model:FindFirstChild("Handcuffs") or _G.T_Model:FindFirstChild("Chain") or _G.T_Model:GetAttribute("Handcuffed") == true
+                _G.IsTargetCriminal = (_G.T_Player and _G.T_Player.Team and _G.T_Player.Team.Name == "Criminals") or _G.T_Model:FindFirstChild("Criminal")
+                _G.IsTargetPolice = (_G.T_Player and _G.T_Player.Team and _G.T_Player.Team.Name == "Police")
+                
+                -- =============================================================
+                -- 👮 СИТУАЦИЯ А: ИГРАЕМ ЗА ПОЛИЦИЮ (POLICE)
+                -- =============================================================
+                if _G.MyTName == "Police" then
+                    -- 1. ТАЗЕР И ХЭНДКАФ АУРА: лочит преступников, бунтарей и уже скованных (для продления)
+                    if _G.IsTaserOrCuffs and _G.cfg.trigRestraints then
+                        if _G.IsTargetCriminal or _G.IsTargetHostile or _G.IsTargetCuffed then
+                            _G.ShouldTriggerFire = true
+                        end
+                    
+                    -- 2. ОГНЕСТРЕЛ: стреляет только по активным криминалам и бунтарям, НЕ трогает скованных
+                    elseif _G.IsWeaponGun and _G.cfg.trigGunsPolice then
+                        if _G.IsTargetCriminal and not _G.IsTargetCuffed then
+                            _G.ShouldTriggerFire = true
+                        elseif _G.IsTargetHostile and not _G.IsTargetCuffed then
+                            _G.ShouldTriggerFire = true
+                        end
+                    end
+                    
+                -- =============================================================
+                -- 🥷 СИТУАЦИЯ Б: ИГРАЕМ ЗА КРИМИНАЛОВ ИЛИ ЗЭКОВ
+                -- =============================================================
+                elseif _G.MyTName == "Criminals" or _G.MyTName == "Inmates" then
+                    -- Всегда уничтожаем полицию по статус-чеку
+                    if _G.IsTargetPolice then
+                        _G.ShouldTriggerFire = true
+                    end
+                    
+                    -- Опция Crim Shoot All: авто-атака по бунтующим зэкам в кандалах
+                    if _G.MyTName == "Criminals" and _G.cfg.crimShootAll and _G.IsTargetHostile and _G.IsTargetCuffed then
+                        _G.ShouldTriggerFire = true
+                    end
+                    
+                    -- Опция стрельбы по фракции Преступников (Criminals)
+                    if _G.cfg.crimShootCriminals and _G.IsTargetCriminal then
+                        _G.ShouldTriggerFire = true
+                    end
+                end
+            end
+            
+            -- ИСПОЛНЕНИЕ ВЫСТРEЛА ТРИГГЕРБОТА
+            if _G.ShouldTriggerFire and _G.cfg.silentTriggerbot then
+                if mouse1press and mouse1release then
+                    mouse1press()
+                    task.wait(0.005)
+                    mouse1release()
+                else
+                    pcall(function() _G.ActiveTool:Activate() end)
+                end
+            end
+            
+        end
+    end
+end)
+print("Часть 12А3 (Статус-чек интегрирован) успешно загружена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12Б: ПОЛНЫЙ ОХВАТ ЦЕЛЕЙ ДЛЯ ТАЗЕРА (КРИМИНАЛЫ, ЗЭКИ, БУНТАРИ)
+--=============================================================================
+
+_G.FatalityIsHostileCheckPrivate = function(Char)
+    _G.IsHostileOk, _G.HostileAttrVal = pcall(function() return Char:GetAttribute("Hostile") end)
+    if _G.IsHostileOk and _G.HostileAttrVal ~= nil then return _G.HostileAttrVal == true end
+    _G.HostileBoolObj = Char:FindFirstChild("Hostile")
+    if _G.HostileBoolObj and _G.HostileBoolObj:IsA("BoolValue") then return _G.HostileBoolObj.Value end
+    return false
+end
+
+_G.FatalityCanDamagePlayerPrivate = function(P)
+    _G.TargetChar = P.Character
+    if not _G.TargetChar then return false end
+    _G.TargetHum = _G.TargetChar:FindFirstChildOfClass("Humanoid")
+    if not _G.TargetHum or _G.TargetHum.Health <= 0 then return false end
+    if _G.TargetChar:FindFirstChild("ForceField") then return false end
+    
+    if _G.cfg and _G.cfg.silentTeam then
+        _G.MyCurrentTeam = game:GetService("Players").LocalPlayer.Team
+        _G.TheirCurrentTeam = P.Team
+        if _G.MyCurrentTeam and _G.TheirCurrentTeam and _G.MyCurrentTeam == _G.TheirCurrentTeam then return false end
+        
+        -- СТРОГАЯ HvH ЛОГИКА ДЛЯ КОМАНДЫ ПОЛИЦИИ (POLICE)
+        if _G.MyCurrentTeam and _G.MyCurrentTeam.Name == "Police" then
+            _G.MyCharModel = game:GetService("Players").LocalPlayer.Character
+            _G.CurrentHeldTool = _G.MyCharModel and _G.MyCharModel:FindFirstChildOfClass("Tool")
+            
+            _G.IsHoldingRestraint = false
+            if _G.CurrentHeldTool then
+                _G.ToolNameStr = _G.CurrentHeldTool.Name:lower()
+                -- Фильтруем, зажат ли в руках тазер или оригинальные наручники
+                if _G.ToolNameStr:find("taser") or _G.ToolNameStr:find("handcuff") or _G.ToolNameStr:find("cuff") then
+                    _G.IsHoldingRestraint = true
+                end
+            end
+            
+            -- [УЛЬТИМАТИВНЫЙ ТАЗЕР-ЛОК]: Если в руках шокер/наручники
+            if _G.IsHoldingRestraint then
+                if _G.TheirCurrentTeam then
+                    _G.TName = _G.TheirCurrentTeam.Name
+                    -- Лочим абсолютно ВСЕХ Заключенных (Inmates) и ВСЕХ сбежавших Преступников (Criminals) БЕЗ исключений!
+                    if _G.TName == "Inmates" or _G.TName == "Criminals" then
+                        return true
+                    end
+                end
+                -- Дополнительная проверка: если челик сбросил команду, но имеет статус бунтаря — шьём его током
+                if _G.FatalityIsHostileCheckPrivate(_G.TargetChar) then
+                    return true
+                end
+            end
+            
+            -- [ЛЕГИТНЫЙ HvH-ОГНЕСТРЕЛ]: Если в руках автомат, пистолет или нож
+            -- Аим лочит только бунтующих зэков или активных преступников (Criminals) с оружием
+            if _G.TheirCurrentTeam and _G.TheirCurrentTeam.Name == "Criminals" then
+                return true -- Преступников с базы за копов можно убивать всегда
+            end
+            
+            -- Обычных зэков шьем только если они бунтуют, полностью игнорируя мирных и уже скованных в анимации
+            if not _G.FatalityIsHostileCheckPrivate(_G.TargetChar) then return false end
+            if _G.TargetChar:FindFirstChild("Handcuffs") or _G.TargetChar:FindFirstChild("Chain") or _G.TargetChar:GetAttribute("Handcuffed") == true then
+                return false 
+            end
+        end
+    end
+    return true
+end
+
+_G.FatalityIsVisibleCheckPrivate = function(Char, Origin)
+    _G.WallParams = RaycastParams.new()
+    _G.WallParams.FilterType = Enum.RaycastFilterType.Exclude
+    _G.WallParams.FilterDescendantsInstances = game:GetService("Players").LocalPlayer.Character and { game:GetService("Players").LocalPlayer.Character } or {}
+    _G.CheckTargetPartsList = {
+        Char:FindFirstChild(_G.cfg and _G.cfg.silentPart or "Head"), Char:FindFirstChild("Head"),
+        Char:FindFirstChild("HumanoidRootPart"), Char:FindFirstChild("UpperTorso"),
+        Char:FindFirstChild("LowerTorso"), Char:FindFirstChild("Torso"),
+    }
+    for _, CP in ipairs(_G.CheckTargetPartsList) do
+        if not CP then continue end
+        _G.RayDirectionVector = CP.Position - Origin
+        if _G.RayDirectionVector.Magnitude <= 0 then continue end
+        _G.RaycastWallResult = game:GetService("Workspace"):Raycast(Origin, _G.RayDirectionVector, _G.WallParams)
+        if not _G.RaycastWallResult or _G.RaycastWallResult.Instance:FindFirstAncestorOfClass("Model") == Char then return CP end
+    end
+    return nil
+end
+print("Часть 12Б (Ультимативный Тазер-Лок: Преступники + Бунтари) успешно загружена!")
+_G.FatalityGetBestSilentAimTargetGlobal = function(Origin)
+    if typeof(Origin) ~= "Vector3" then
+        _G.TmpCam = game:GetService("Workspace").CurrentCamera
+        Origin = _G.TmpCam and _G.TmpCam.CFrame.Position or Vector3.new()
+    end
+    
+    _G.MaxAllowedAimRange = 300 -- Радиус сканирования 360 градусов (в студах)
+    _G.Closest3DDistance = _G.MaxAllowedAimRange
+    _G.BestTargetBonePartFound = nil
+    
+    for _, P in pairs(game:GetService("Players"):GetPlayers()) do
+        if P == game:GetService("Players").LocalPlayer then continue end
+        if _G.FatalityCanDamagePlayerPrivate and not _G.FatalityCanDamagePlayerPrivate(P) then continue end
+        
+        _G.E_Char = P.Character
+        _G.E_BoneSelector = _G.cfg and _G.cfg.silentPart or "Head"
+        if _G.E_BoneSelector == "Random" then _G.E_BoneSelector = (math.random(1, 2) == 1) and "Head" or "HumanoidRootPart" end
+        _G.E_Part = _G.E_Char and (_G.E_Char:FindFirstChild(_G.E_BoneSelector) or _G.E_Char:FindFirstChild("Head"))
+        
+        if _G.E_Part then
+            -- Считаем чистое расстояние в 3D пространстве вокруг нашего придурка
+            _G.DistanceToEnemy3D = (Origin - _G.E_Part.Position).Magnitude
+            
+            if _G.DistanceToEnemy3D < _G.Closest3DDistance then
+                -- Wall Check (проверка стен)
+                if _G.cfg and _G.cfg.silentWall and _G.FatalityIsVisibleCheckPrivate then
+                    _G.ScannedVisiblePart = _G.FatalityIsVisibleCheckPrivate(_G.E_Char, Origin)
+                    if not _G.ScannedVisiblePart then continue end
+                    _G.E_Part = _G.ScannedVisiblePart
+                end
+                
+                _G.Closest3DDistance = _G.DistanceToEnemy3D
+                _G.BestTargetBonePartFound = _G.E_Part
+            end
+        end
+    end
+    return _G.BestTargetBonePartFound
+end
+print("12В (360° Engine) готова")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12Г: СВЕРХТОЧНЫЙ ХУК CASTRAY С НАТИВНЫМИ КРАСНЫМИ ТРЕЙСЕРАМИ
+--=============================================================================
+
+_G.SilentAimHooked = _G.SilentAimHooked or false
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.bulletTracers = _G.cfg.bulletTracers or false
+
+_G.FatalityGetToolAttributePrivate = function(Tool, Attr)
+    if typeof(Tool) == "Instance" then
+        _G.AttrOk, _G.AttrResultValue = pcall(function() return Tool:GetAttribute(Attr) end)
+        if _G.AttrOk then return _G.AttrResultValue end
+    end
+    return nil
+end
+
+-- [1. СИМУЛЯТОР ВЫСТРЕЛA + ХАК ОКРАШИВАНИЯ ОРИГИНАЛЬНОГО ТРЕЙСЕРА]
+_G.FatalityNormalCastSimulationPrivate = function(p1, p2, p3)
+    _G.CastOrigin, _G.CastAim, _G.CastTool = nil, nil, nil
+    if typeof(p1) == "Vector3" then
+        _G.CastOrigin = p1
+        if typeof(p2) == "Vector3" then _G.CastAim = p2 elseif typeof(p3) == "Vector3" then _G.CastAim = p3 end
+        if typeof(p2) == "Instance" then _G.CastTool = p2 elseif typeof(p3) == "Instance" then _G.CastTool = p3 end
+    else
+        _G.CastTool = p1
+        if typeof(p2) == "Vector3" then _G.CastOrigin = p2 end
+        if typeof(p3) == "Vector3" then _G.CastAim = p3 elseif typeof(p2) == "Vector3" then _G.CastAim = p2 end
+    end
+    if not _G.CastOrigin or not _G.CastAim then return nil, Vector3.new() end
+    _G.CastDirectionVector = _G.CastAim - _G.CastOrigin
+    if _G.CastDirectionVector.Magnitude <= 0 then _G.CastDirectionVector = Vector3.new(0, 0, -1) end
+    _G.WeaponMaxFireRange = _G.FatalityGetToolAttributePrivate(_G.CastTool, "Range") or 200
+    
+    _G.CastParamsObj = RaycastParams.new()
+    _G.CastParamsObj.FilterType = Enum.RaycastFilterType.Exclude
+    _G.CastParamsObj.FilterDescendantsInstances = game:GetService("Players").LocalPlayer.Character and { game:GetService("Players").LocalPlayer.Character } or {}
+    _G.CastParamsObj.CollisionGroup = "ClientBullet"
+    
+    -- Ловим оригинальную пулю в папке Effects для перекраски
+    if _G.cfg.bulletTracers and workspace:FindFirstChild("Effects") then
+        _G.TraceConn = workspace.Effects.ChildAdded:Connect(function(child)
+            if child.Name == "Bullet" or child:IsA("BasePart") then
+                pcall(function()
+                    child.Color = Color3.fromRGB(255, 10, 10) -- Перекрашиваем в алый
+                    child.Material = Enum.Material.Neon       -- Поджигаем неон
+                end)
+            end
+        end)
+        -- Авто-отключение прослушки через кадр, чтобы не жрать FPS
+        task.delay(0.05, function() if _G.TraceConn then _G.TraceConn:Disconnect() end end)
+    end
+
+    _G.GlobalRaycastWorldResult = game:GetService("Workspace"):Raycast(_G.CastOrigin, _G.CastDirectionVector.Unit * _G.WeaponMaxFireRange, _G.CastParamsObj)
+    if _G.GlobalRaycastWorldResult then return _G.GlobalRaycastWorldResult.Instance, _G.GlobalRaycastWorldResult.Position end
+    return nil, _G.CastOrigin + _G.CastDirectionVector.Unit * _G.WeaponMaxFireRange
+end
+
+-- [2. ПОЛНЫЙ ВОЗВРАТ ДВИЖКА СAЙЛЕНТ АИМА С ФИKСОМ 360 И КОНФИГОВ]
+_G.FatalityHookCastBypassPrivate = function(p1, p2, p3)
+    _G.DetectedOrigin = nil
+    if typeof(p1) == "Vector3" then _G.DetectedOrigin = p1
+    elseif typeof(p2) == "Vector3" then _G.DetectedOrigin = p2
+    elseif typeof(p3) == "Vector3" then _G.DetectedOrigin = p3 end
+    
+    if _G.DetectedOrigin and _G.cfg and _G.cfg.silentEn then
+        _G.MySelfChar = game:GetService("Players").LocalPlayer.Character
+        _G.MySelfRoot = _G.MySelfChar and _G.MySelfChar:FindFirstChild("HumanoidRootPart")
+        
+        if _G.MySelfRoot and (_G.DetectedOrigin - _G.MySelfRoot.Position).Magnitude <= 75 then
+            -- Опрашиваем наш умный фракционный статус-чек из 12Б
+            _G.FoundBestLimbTarget = _G.FatalityGetBestSilentAimTargetGlobal and _G.FatalityGetBestSilentAimTargetGlobal(_G.DetectedOrigin)
+            
+            if _G.FoundBestLimbTarget and _G.FoundBestLimbTarget.Parent then
+                _G.HitChancePass = _G.FatalityCalculateHitChance and _G.FatalityCalculateHitChance(_G.cfg.silentChance or 100) or false
+                
+                if _G.HitChancePass then
+                    -- Проверка стандартного узкого 2D FOV
+                    if not _G.cfg.fov360Mode then
+                        _G.CamViewportPoint, _G.IsTargetVisibleOnScreen = workspace.CurrentCamera:WorldToViewportPoint(_G.FoundBestLimbTarget.Position)
+                        if not _G.IsTargetVisibleOnScreen then return _G.FatalityNormalCastSimulationPrivate(p1, p2, p3) end
+                        
+                        _G.CursorScreenLoc = game:GetService("UserInputService"):GetMouseLocation()
+                        _G.CurrentAimMouseDist = (Vector2.new(_G.CamViewportPoint.X, _G.CamViewportPoint.Y) - _G.CursorScreenLoc).Magnitude
+                        if _G.CurrentAimMouseDist > (_G.cfg.silentFov or 130) then return _G.FatalityNormalCastSimulationPrivate(p1, p2, p3) end
+                    end
+                    
+                    -- Проверка препятствий (Стены), если валлбанг отключен в 12Б
+                    if _G.cfg.silentWall then
+                        _G.CheckParams = RaycastParams.new()
+                        _G.CheckParams.FilterType = Enum.RaycastFilterType.Exclude
+                        _G.CheckParams.FilterDescendantsInstances = {_G.MySelfChar, _G.FoundBestLimbTarget.Parent}
+                        _G.WallCheckRay = game:GetService("Workspace"):Raycast(_G.DetectedOrigin, _G.FoundBestLimbTarget.Position - _G.DetectedOrigin, _G.CheckParams)
+                        if _G.WallCheckRay then 
+                            return _G.FatalityNormalCastSimulationPrivate(p1, p2, p3) 
+                        end
+                    end
+                    
+                    -- Если трейсер включен, подсвечиваем оригинальный луч до кости копа
+                    if _G.cfg.bulletTracers then
+                        task.spawn(_G.FatalityNormalCastSimulationPrivate, _G.DetectedOrigin, _G.FoundBestLimbTarget.Position)
+                    end
+                    
+                    return _G.FoundBestLimbTarget, _G.FoundBestLimbTarget.Position
+                end
+            end
+        end
+    end
+    return _G.FatalityNormalCastSimulationPrivate(p1, p2, p3)
+end
+
+-- Биндим хук в память игры (однократно за сессию)
+if not _G.SilentAimHooked then
+    _G.SilentAimHooked = true
+    task.spawn(function()
+        _G.TotalFunctionsHookedCount = 0
+        for _, Func in next, getgc(true) do
+            if type(Func) == "function" then
+                _G.FunctionDebugInfoStruct = debug.getinfo(Func, "nS")
+                if _G.FunctionDebugInfoStruct and _G.FunctionDebugInfoStruct.name == "castRay" then
+                    pcall(hookfunction, Func, _G.FatalityHookCastBypassPrivate)
+                    _G.TotalFunctionsHookedCount = _G.TotalFunctionsHookedCount + 1
+                end
+            end
+            if _G.TotalFunctionsHookedCount >= 5 then break end
+        end
+    end)
+end
+
+print("Часть 12Г (Сайлент + Оригинальные Красные Трейсеры) восстановлена!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 12Д: TASER X-RAY BYPASS (УДАР ТОКОМ СКВОЗЬ СТЕНЫ И ЦЕПИ)
+-- =============================================================================
+
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.taserBypassEnabled = false -- Флаг контроля тайзера в меню
+
+-- [1. АВТО-ИНТЕГРАЦИЯ ТУМБЛЕРA В ТВОЮ КАРТОЧКУ COMBAT]
+task.spawn(function()
+    task.wait(0.6) -- Даем прогрузиться прошлым частям интерфейса Combat
+    if _G.SilentAimBox then
+        _G.cToggle(_G.SilentAimBox, "Enable Taser Wall Bypass", false, function(state)
+            _G.cfg.taserBypassEnabled = state
+        end)
+    end
+end)
+
+-- [2. СВЕРХУМНЫЙ СКАНИРОВЩИК СОСТОЯНИЯ ЗЭКОВ (ПРОБИТИЕ ЦЕПЕЙ И НАПИСАНИЯ СТАТУСОВ)]
+_G.FatalityGetTaserTargetInChains = function()
+    _G.BestTaserVictim = nil
+    _G.MaxTaserDistance = 150 -- Максимальная дальность полета провода тайзера (в студах)
+    
+    _G.L_Player = game:GetService("Players").LocalPlayer
+    _G.L_Root = _G.L_Player.Character and _G.L_Player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not _G.L_Root then return nil end
+    
+    for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
+        -- Ищем цели только если мы за Ментов/Охрану, а цель — Заключенный или Криминал
+        if p ~= _G.L_Player and p.Character and p.Team and (p.Team.Name == "Inmates" or p.Team.Name == "Criminals") then
+            _G.V_Char = p.Character
+            _G.V_Root = _G.V_Char:FindFirstChild("HumanoidRootPart")
+            _G.V_Hum = _G.V_Char:FindFirstChildOfClass("Humanoid")
+            
+            if _G.V_Root and _G.V_Hum and _G.V_Hum.Health > 0 then
+                _G.DistToInmate = (_G.L_Root.Position - _G.V_Root.Position).Magnitude
+                
+                if _G.DistToInmate <= _G.MaxTaserDistance then
+                    -- Проверяем: бунтарь ли он, скован ли цепью/наручниками (Handcuffed) или сидит за решеткой спавна
+                    _G.IsRebelInmate = false
+                    
+                    -- Проверка А: Твой кастомный Hostile-чек из Части 12Б
+                    if _G.FatalityIsHostileCheckPrivate and _G.FatalityIsHostileCheckPrivate(_G.V_Char) then
+                        _G.IsRebelInmate = true
+                    end
+                    
+                    -- Проверка Б: Поиск объектов цепей, наручников или статуса ареста внутри модельки
+                    if _G.V_Char:FindFirstChild("Handcuffs") or _G.V_Char:FindFirstChild("Chain") or _G.V_Char:GetAttribute("Handcuffed") == true then
+                        _G.IsRebelInmate = true
+                    end
+                    
+                    -- Если зэк бунтует или закован, фиксируем его как приоритет для пробития током
+                    if _G.IsRebelInmate then
+                        _G.MaxTaserDistance = _G.DistToInmate
+                        _G.BestTaserVictim = _G.V_Root
+                    end
+                end
+            end
+        end
+    end
+    return _G.BestTaserVictim
+end
+
+-- =============================================================================
+-- [3. ВЕЧНЫЙ ХУК ПЕРЕХВАТА ПРОВОДОВ ТАЙЗЕРА БЕЗ МЕТАТАБЛИЦ И БЕЗ ЛАГОВ]
+-- =============================================================================
+if _G.FatalityTaserExploitConnPrivate then pcall(function() _G.FatalityTaserExploitConnPrivate:Disconnect() end) end
+_G.FatalityTaserExploitConnPrivate = game:GetService("RunService").RenderStepped:Connect(function()
+    if not _G.FatalityCheatGui or not _G.FatalityCheatGui.Parent then
+        if _G.FatalityTaserExploitConnPrivate then _G.FatalityTaserExploitConnPrivate:Disconnect() end
+        return
+    end
+
+    -- Работает строго когда тумблер включен в меню и ты зажимаешь кнопку огня
+    if _G.cfg and _G.cfg.taserBypassEnabled then
+        _G.M_Char = game:GetService("Players").LocalPlayer.Character
+        _G.ActiveTaserTool = _G.M_Char and _G.M_Char:FindFirstChild("Taser") -- Фильтруем, что в руках именно электрошокер
+        
+        if _G.ActiveTaserTool and game:GetService("UserInputService"):IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            -- Сканируем зэков в цепях за решётками
+            _G.TaserTargetLimb = _G.FatalityGetTaserTargetInChains()
+            
+            if _G.TaserTargetLimb then
+                -- [БАЙПАС РЕШЁТОК]: Наносекундный до ворот луча тайзера сквозь любые преграды на карте
+                pcall(function()
+                    -- Телепортируем траекторию выстрела разряда напрямую внутрь хитбокса заключенного
+                    _G.TaserMuzzleObj = _G.ActiveTaserTool:FindFirstChild("Muzzle") or _G.ActiveTaserTool:FindFirstChild("Part")
+                    if _G.TaserMuzzleObj then
+                        -- Игра думает, что провод летит прямо, но электрический хит регистрируется прямо на теле зэка
+                        workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, _G.TaserTargetLimb.Position)
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+print("Часть 12Д (Taser Abuse Engine) успешно загружена без local регистров!")
+-- =============================================================================
+-- FATALITY.WIN — ЧАСТЬ 13: ВЫСОКОПРОИЗВОДИТЕЛЬНЫЙ FLY EXPLOIT [FIXED MOUSE4]
+-- =============================================================================
+
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.flySpeed = 50 
+_G.FatalityFlyActivePrivate = false
+
+_G.FatalityBodyVelocityObj = nil
+_G.FatalityBodyGyroObj = nil
+
+-- Авто-интеграция слайдера скорости во вкладку Combat
+task.spawn(function()
+    task.wait(0.5)
+    if _G.SilentAimBox then
+        _G.cSlider(_G.SilentAimBox, "HvH Fly Velocity Speed", 10, 150, 50, function(val)
+            _G.cfg.flySpeed = val
+        end)
+    end
+end)
+
+_G.FatalityStopFlyMechanicPrivate = function()
+    _G.FatalityFlyActivePrivate = false
+    if _G.FatalityBodyVelocityObj then pcall(function() _G.FatalityBodyVelocityObj:Destroy() end) _G.FatalityBodyVelocityObj = nil end
+    if _G.FatalityBodyGyroObj then pcall(function() _G.FatalityBodyGyroObj:Destroy() end) _G.FatalityBodyGyroObj = nil end
+    
+    _G.F_Char = game:GetService("Players").LocalPlayer.Character
+    _G.F_Hum = _G.F_Char and _G.F_Char:FindFirstChildOfClass("Humanoid")
+    if _G.F_Hum then _G.F_Hum.PlatformStand = false end
+end
+
+_G.FatalityStartFlyMechanicPrivate = function()
+    _G.FatalityStopFlyMechanicPrivate() 
+    
+    _G.F_Char = game:GetService("Players").LocalPlayer.Character
+    _G.F_Root = _G.F_Char and _G.F_Char:FindFirstChild("HumanoidRootPart")
+    _G.F_Hum = _G.F_Char and _G.F_Char:FindFirstChildOfClass("Humanoid")
+    
+    if _G.F_Root and _G.F_Hum then
+        _G.FatalityFlyActivePrivate = true
+        _G.F_Hum.PlatformStand = true 
+        
+        _G.FatalityBodyGyroObj = Instance.new("BodyGyro")
+        _G.FatalityBodyGyroObj.Name = "FatalityFlyGyro"
+        _G.FatalityBodyGyroObj.P = 9e4
+        _G.FatalityBodyGyroObj.maxTorque = Vector3.new(9e5, 9e5, 9e5)
+        _G.FatalityBodyGyroObj.cframe = _G.F_Root.CFrame
+        _G.FatalityBodyGyroObj.Parent = _G.F_Root
+        
+        _G.FatalityBodyVelocityObj = Instance.new("BodyVelocity")
+        _G.FatalityBodyVelocityObj.Name = "FatalityFlyVelocity"
+        _G.FatalityBodyVelocityObj.velocity = Vector3.new(0, 0.1, 0)
+        _G.FatalityBodyVelocityObj.maxForce = Vector3.new(9e5, 9e5, 9e5)
+        _G.FatalityBodyVelocityObj.Parent = _G.F_Root
+        
+        task.spawn(function()
+            while _G.FatalityFlyActivePrivate and _G.F_Root and _G.FatalityBodyVelocityObj do
+                _G.FlyCamCFrame = workspace.CurrentCamera.CFrame
+                _G.FlyMovementVector = Vector3.new(0, 0, 0)
+                
+                _G.UIS = game:GetService("UserInputService")
+                if _G.UIS:IsKeyDown(Enum.KeyCode.W) then _G.FlyMovementVector = _G.FlyMovementVector + _G.FlyCamCFrame.LookVector end
+                if _G.UIS:IsKeyDown(Enum.KeyCode.S) then _G.FlyMovementVector = _G.FlyMovementVector - _G.FlyCamCFrame.LookVector end
+                if _G.UIS:IsKeyDown(Enum.KeyCode.A) then _G.FlyMovementVector = _G.FlyMovementVector - _G.FlyCamCFrame.RightVector end
+                if _G.UIS:IsKeyDown(Enum.KeyCode.D) then _G.FlyMovementVector = _G.FlyMovementVector + _G.FlyCamCFrame.RightVector end
+                
+                if _G.FlyMovementVector.Magnitude > 0 then
+                    _G.FatalityBodyVelocityObj.velocity = _G.FlyMovementVector.Unit * (_G.cfg.flySpeed or 50)
+                else
+                    _G.FatalityBodyVelocityObj.velocity = Vector3.new(0, 0, 0)
+                end
+                
+                if _G.FatalityBodyGyroObj then _G.FatalityBodyGyroObj.cframe = _G.FlyCamCFrame end
+                task.wait()
+            end
+        end)
+    end
+end
+
+-- [МЕГА-ФИКС ДЕТЕКЦИИ БОКОВОЙ КНОПКИ МЫШИ (MOUSE4 / BACK BUTTON)]
+if _G.FatalityFlyInputConnPrivate then pcall(function() _G.FatalityFlyInputConnPrivate:Disconnect() end) end
+_G.FatalityFlyInputConnPrivate = game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+    -- В Luau боковые кнопки мыши отлавливаются через проверку Input-ассета мыши
+    if not processed and (input.UserInputType == Enum.UserInputType.MouseButton3 or tostring(input.UserInputType):find("MouseButton4") or tostring(input.UserInputType):find("MouseBackButton")) then
+        if _G.FatalityFlyActivePrivate then
+            _G.FatalityStopFlyMechanicPrivate()
+            print("[Fatality] Полет отключен!")
+        else
+            _G.FatalityStartFlyMechanicPrivate()
+            print("[Fatality] Полет активирован!")
+        end
+    end
+end)
+
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
+    _G.FatalityStopFlyMechanicPrivate()
+end)
+
+_G.FatalityUnloadFlyOnlyPrivate = function()
+    if _G.FatalityFlyInputConnPrivate then pcall(function() _G.FatalityFlyInputConnPrivate:Disconnect() end) end
+    _G.FatalityStopFlyMechanicPrivate()
+end
+
+print("Часть 13 (Полет на Mouse4 полностью исправлен!) успешно загружена!")
+--=============================================================================
+-- FATALITY.WIN — ЧАСТЬ 14: ОБНОВЛЕННЫЙ ТРИГГЕРБОТ С ТАЗЕР И ХЭНДKАФ АУРОЙ
+--=============================================================================
+
+_G.CombatPageRefPrivate = _G.FatalityAllPages["Combat"] or _G.MainPagesContainer
+
+if _G.CombatPageRefPrivate then
+    _G.OldMovementBubble = _G.CombatPageRefPrivate:FindFirstChild("MovementExploitsBubble")
+    if _G.OldMovementBubble then _G.OldMovementBubble:Destroy() end
+    
+    _G.OldTriggerBoxBubble = _G.CombatPageRefPrivate:FindFirstChild("TriggerbotSuiteBubble")
+    if _G.OldTriggerBoxBubble then _G.OldTriggerBoxBubble:Destroy() end
+end
+
+if not _G.cfg then _G.cfg = {} end
+_G.cfg.autoSprintActive = _G.cfg.autoSprintActive or false
+_G.cfg.silentTriggerbot = _G.cfg.silentTriggerbot or false
+_G.cfg.trigRestraints = _G.cfg.trigRestraints or false      
+_G.cfg.trigGunsPolice = _G.cfg.trigGunsPolice or false      
+_G.cfg.crimShootAll = _G.cfg.crimShootAll or false        
+_G.cfg.crimShootCriminals = _G.cfg.crimShootCriminals or false  
+
+_G.MovementBox = _G.cBubble(_G.CombatPageRefPrivate, UDim2.new(0, 385, 0, 100), UDim2.new(0, 415, 0, 470), "Movement Exploits")
+_G.cToggle(_G.MovementBox, "Enable Legit Auto Sprint", false, function(state) _G.cfg.autoSprintActive = state end)
+
+-- ОКНО ТРИГГЕРБОТА НА СВОЕМ МЕСТЕ Y = 590
+_G.TriggerbotBox = _G.cBubble(_G.CombatPageRefPrivate, UDim2.new(0, 385, 0, 240), UDim2.new(0, 415, 0, 590), "Triggerbot Suite")
+
+_G.cToggle(_G.TriggerbotBox, "Triggerbot Team Check (Auto Fire)", false, function(state) _G.cfg.silentTriggerbot = state end)
+
+-- [ПЕРЕИМЕНОВАЛИ КНОПКУ ПОД ТАЗЕР И ХЭНДКАФ АУРУ]
+_G.cToggle(_G.TriggerbotBox, "Taser and Handcuffs Aura", false, function(state) 
+    _G.cfg.trigRestraints = state 
+end)
+
+_G.cToggle(_G.TriggerbotBox, "Triggerbot: Guns Legit Filter (Police)", false, function(state) _G.cfg.trigGunsPolice = state end)
+_G.cToggle(_G.TriggerbotBox, "Triggerbot: Crim Shoot All (HvH Mix)", false, function(state) _G.cfg.crimShootAll = state end)
+_G.cToggle(_G.TriggerbotBox, "Triggerbot: Target Criminals Team", false, function(state) _G.cfg.crimShootCriminals = state end)
+
+print("Часть 14 переименована")
