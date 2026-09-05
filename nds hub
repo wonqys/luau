@@ -477,3 +477,141 @@ SendChatMessage("")
 loadstring(game:HttpGet('https://raw.githubusercontent.com/ScpGuest666/Random-Roblox-script/refs/heads/main/Roblox%20Fe%20Vehicle%20Fly%20GUI%20script'))()
 loadstring(game:HttpGet("https://pastebin.com/raw/8XCgheRD"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))()
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+local plr = game:GetService("Players").LocalPlayer
+
+local screen  = Instance.new("ScreenGui")
+screen.Parent = plr.PlayerGui
+screen.Name   = "Jerk"
+
+local frame    = Instance.new("Frame")
+frame.Parent   = screen
+frame.Size     = UDim2.new(0,250,0,250)
+frame.Position = UDim2.new(0,15,0,680)
+
+frame.Active     = true
+frame.Selectable = true
+frame.Draggable  = true
+
+local btn    = Instance.new("TextButton")
+btn.Parent   = frame
+btn.Size     = UDim2.new(0,25,0,25)
+btn.Position = UDim2.new(0,225,0,0)
+btn.Text     = "X"
+btn.TextSize = 12
+
+local text             = Instance.new("TextBox")
+text.Parent            = frame
+text.Size              = UDim2.new(0,80,0,35)
+text.Position          = UDim2.new(0,90,0,100)
+text.Text              = ""
+text.PlaceholderText   = "Speed"
+text.PlaceholderColor3 = Color3.fromRGB(70,70,70)
+text.TextSize          = 12
+
+local btn2    = Instance.new("TextButton")
+btn2.Parent   = frame
+btn2.Size     = text.Size
+btn2.Position = UDim2.new(0,30,0,140)
+btn2.Text     = "Start"
+btn2.TextSize = 12
+
+local btn3    = Instance.new("TextButton")
+btn3.Parent   = frame
+btn3.Size     = text.Size
+btn3.Position = UDim2.new(0,150,0,140)
+btn3.Text     = "Stop"
+btn3.TextSize = 12
+
+btn.MouseButton1Click:Connect(function()
+    screen:Destroy()
+end)
+
+btn2.MouseButton1Click:Connect(function()
+    local anim       = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://168268306"
+    local animtrack  = game.Players.LocalPlayer.Character.Humanoid.Animator:LoadAnimation(anim)
+    animtrack.Looped = true
+    animtrack:Play()
+    animtrack:AdjustSpeed(100)
+    
+    btn3.MouseButton1Click:Connect(function()
+        animtrack:Stop()
+    end)
+    text.FocusLost:Connect(function()
+        animtrack:AdjustSpeed(text.Text)
+    end)
+end)
+
+plr.CharacterAdded:Connect(function()
+    local plr = game.Players.LocalPlayer
+
+    local screen  = Instance.new("ScreenGui")
+    screen.Parent = plr.PlayerGui
+    screen.Name   = "Jerk"
+
+    local frame    = Instance.new("Frame")
+    frame.Parent   = screen
+    frame.Size     = UDim2.new(0,250,0,250)
+    frame.Position = UDim2.new(0,15,0,680)
+
+    frame.Active     = true
+    frame.Selectable = true
+    frame.Draggable  = true
+
+    local btn    = Instance.new("TextButton")
+    btn.Parent   = frame
+    btn.Size     = UDim2.new(0,25,0,25)
+    btn.Position = UDim2.new(0,225,0,0)
+    btn.Text     = "X"
+    btn.TextSize = 12
+
+    local text             = Instance.new("TextBox")
+    text.Parent            = frame
+    text.Size              = UDim2.new(0,80,0,35)
+    text.Position          = UDim2.new(0,90,0,100)
+    text.Text              = ""
+    text.PlaceholderText   = "Speed"
+    text.PlaceholderColor3 = Color3.fromRGB(70,70,70)
+    text.TextSize          = 12
+
+    local btn2    = Instance.new("TextButton")
+    btn2.Parent   = frame
+    btn2.Size     = text.Size
+    btn2.Position = UDim2.new(0,30,0,140)
+    btn2.Text     = "Start"
+    btn2.TextSize = 12
+
+    local btn3    = Instance.new("TextButton")
+    btn3.Parent   = frame
+    btn3.Size     = text.Size
+    btn3.Position = UDim2.new(0,150,0,140)
+    btn3.Text     = "Stop"
+    btn3.TextSize = 12
+
+    btn.MouseButton1Click:Connect(function()
+        screen:Destroy()
+    end)
+
+    btn2.MouseButton1Click:Connect(function()
+        local anim       = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://168268306"
+        local animtrack  = game.Players.LocalPlayer.Character.Humanoid.Animator:LoadAnimation(anim)
+        animtrack.Looped = true
+        animtrack:Play()
+        animtrack:AdjustSpeed(100)
+    
+        btn3.MouseButton1Click:Connect(function()
+            animtrack:Stop()
+        end)
+        text.FocusLost:Connect(function()
+            animtrack:AdjustSpeed(text.Text)
+        end)
+    end)
+end)
