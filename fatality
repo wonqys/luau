@@ -1,1 +1,231 @@
+-- =============================================================================
+-- FATALITY VISUALS — LEGIT PACK + CUSTOM TELEGRAM OVERLAY
+-- =============================================================================
 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local CharactersFolder = Workspace:WaitForChild("Characters")
+local Running = true
+
+-- НАСТРОЙКИ ПАКА
+local BoxColor_Enemy = Color3.fromRGB(255, 60, 60)   -- Красный для врагов
+local BoxColor_Team = Color3.fromRGB(60, 255, 60)    -- Зеленый для своих
+local ChamsTransparency = 0.5                        -- Прозрачность чамсов сквозь стены
+
+local HeadSizeMultiplier = 1.5                       -- Увеличение головы ровно в 1.5 раза
+local HeadTransparency = 1.0                         -- 1.0 = Хитбоксы полностью невидимы
+
+local ESP_Boxes = {}
+local OriginalHeadData = {}
+
+-- ==========================================
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ Drawing
+-- ==========================================
+local function getLine()
+    local line = Drawing.new("Line")
+    line.Thickness = 1
+    line.Transparency = 1
+    line.Visible = false
+    return line
+end
+
+local function getText()
+    local text = Drawing.new("Text")
+    text.Text = "t.me/FatalityVisuals"               -- Твой Telegram-канал над игроками
+    text.Size = 13                                   -- Аккуратный легитный размер шрифта
+    text.Center = true
+    text.Outline = true
+    text.OutlineColor = Color3.fromRGB(0, 0, 0)      -- Черная обводка текста для читаемости
+    text.Visible = false
+    return text
+end
+
+local function getTeamName(model)
+    local terrorists = CharactersFolder:FindFirstChild("Terrorists")
+    local cts = CharactersFolder:FindFirstChild("Counter-Terrorists")
+    if terrorists and terrorists:FindFirstChild(model.Name) then return "Terrorists"
+    elseif cts and cts:FindFirstChild(model.Name) then return "Counter-Terrorists" end
+    return "Neutral"
+end
+
+-- ==========================================
+-- 1. ЛЕГИТНЫЙ ХИТБОКС-ЭКСПАНДЕР (1.5х)
+-- ==========================================
+local function applyLegitHitbox(model)
+    if model.Name == LocalPlayer.Name then return end
+    local head = model:WaitForChild("Head", 5)
+    
+    if head and head:IsA("BasePart") and not OriginalHeadData[head] then
+        OriginalHeadData[head] = {
+            Size = head.Size,
+            Transparency = head.Transparency,
+            CanCollide = head.CanCollide
+        }
+        head.Size = head.Size * HeadSizeMultiplier
+        head.Transparency = HeadTransparency
+        head.CanCollide = false
+    end
+end
+
+-- ==========================================
+-- 2. СОЗДАНИЕ СТРУКТУРЫ ESP (БОКСЫ + ЧАМСЫ + ТГ-ТЕКСТ)
+-- ==========================================
+local function createLegitVisuals(model)
+    if model.Name == LocalPlayer.Name then return end
+    if ESP_Boxes[model] then return end
+
+    local box = {
+        Top = getLine(), Bottom = getLine(), Left = getLine(), Right = getLine(),
+        Tag = getText()
+    }
+    ESP_Boxes[model] = box
+
+    -- Создаем Чамсы (Highlight силуэт)
+    local chams = Instance.new("Highlight")
+    chams.Name = "FatalityChams"
+    chams.FillTransparency = ChamsTransparency
+    chams.OutlineTransparency = 0.2
+    chams.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    chams.Parent = model
+
+    -- Цикл обновления графики
+    task.spawn(function()
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            if not Running or not model or not model:IsDescendantOf(CharactersFolder) then
+                box.Top:Destroy(); box.Bottom:Destroy(); box.Left:Destroy(); box.Right:Destroy()
+                box.Tag:Destroy()
+                if chams then chams:Destroy() end
+                ESP_Boxes[model] = nil
+                connection:Disconnect()
+                return
+            end
+
+            local part = model:FindFirstChild("UpperTorso") or model:FindFirstChild("Head")
+            if part and part:IsA("BasePart") then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+
+                if onScreen then
+                    local sizeFactor = 3200 / screenPos.Z
+                    local width = math.clamp(sizeFactor, 15, 200)
+                    local height = width * 1.5
+                    local boxPos = Vector2.new(screenPos.X - width / 2, screenPos.Y - height / 2)
+
+                    -- Тимчек для цвета
+                    local currentTeam = getTeamName(model)
+                    local myTeam = "Unknown"
+                    local myChar = CharactersFolder:FindFirstChild(LocalPlayer.Name, true)
+                    if myChar and myChar.Parent then myTeam = myChar.Parent.Name end
+
+                    local color = BoxColor_Enemy
+                    if myTeam ~= "Unknown" and currentTeam == myTeam then
+                        color = BoxColor_Team
+                    end
+
+                    -- Применяем цвета к чамсам
+                    chams.FillColor = color
+                    chams.OutlineColor = color
+                    chams.Enabled = true
+
+                    -- Рисуем 2D Бокс
+                    box.Top.From = boxPos
+                    box.Top.To = Vector2.new(boxPos.X + width, boxPos.Y)
+                    box.Top.Color = color
+                    box.Top.Visible = true
+
+                    box.Bottom.From = Vector2.new(boxPos.X, boxPos.Y + height)
+                    box.Bottom.To = Vector2.new(boxPos.X + width, boxPos.Y + height)
+                    box.Bottom.Color = color
+                    box.Bottom.Visible = true
+
+                    box.Left.From = boxPos
+                    box.Left.To = Vector2.new(boxPos.X, boxPos.Y + height)
+                    box.Left.Color = color
+                    box.Left.Visible = true
+
+                    box.Right.From = Vector2.new(boxPos.X + width, boxPos.Y)
+                    box.Right.To = Vector2.new(boxPos.X + width, boxPos.Y + height)
+                    box.Right.Color = color
+                    box.Right.Visible = true
+
+                    -- Позиционируем ТГ-ссылку ровно над верхней границей бокса
+                    box.Tag.Position = Vector2.new(screenPos.X, boxPos.Y - 16)
+                    box.Tag.Color = color
+                    box.Tag.Visible = true
+                else
+                    box.Top.Visible = false; box.Bottom.Visible = false; box.Left.Visible = false; box.Right.Visible = false
+                    box.Tag.Visible = false
+                    chams.Enabled = false
+                end
+            else
+                box.Top.Visible = false; box.Bottom.Visible = false; box.Left.Visible = false; box.Right.Visible = false
+                box.Tag.Visible = false
+                chams.Enabled = false
+            end
+        end)
+    end)
+end
+
+-- ==========================================
+-- МЕНЕДЖЕР ПОТОКОВ
+-- ==========================================
+local function scanFolder(folder)
+    for _, child in pairs(folder:GetChildren()) do
+        if child:IsA("Model") then
+            createLegitVisuals(child)
+            applyLegitHitbox(child)
+        elseif child:IsA("Folder") then
+            scanFolder(child)
+        end
+    end
+
+    folder.ChildAdded:Connect(function(child)
+        if not Running then return end
+        task.wait(0.5)
+        if child:IsA("Model") then
+            createLegitVisuals(child)
+            applyLegitHitbox(child)
+        elseif child:IsA("Folder") then
+            scanFolder(child)
+        end
+    end)
+end
+
+scanFolder(CharactersFolder)
+print("[Fatality Pack] Успешно запущен! Ссылка на ТГ горит над игроками. Выгрузка на END.")
+
+-- ==========================================
+-- АВТО-ВЫГРУЗКА НА КНОПКУ END
+-- ==========================================
+local keyConnection
+keyConnection = UserInputService.InputBegan:Connect(function(input, processed)
+    if input.KeyCode == Enum.KeyCode.End then
+        Running = false
+        task.wait(0.1)
+        
+        -- Сдуваем хитбоксы голов обратно
+        for head, original in pairs(OriginalHeadData) do
+            if head and head.Parent then
+                head.Size = original.Size
+                head.Transparency = original.Transparency
+                head.CanCollide = original.CanCollide
+            end
+        end
+        OriginalHeadData = {}
+
+        -- Удаляем чамсы
+        for _, obj in pairs(CharactersFolder:GetDescendants()) do
+            if obj.Name == "FatalityChams" then
+                obj:Destroy()
+            end
+        end
+        
+        print("[Fatality Pack] Все визуальные элементы и ТГ-ссылки удалены кнопкой END!")
+        keyConnection:Disconnect()
+    end
+end)
