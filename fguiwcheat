@@ -1,0 +1,110 @@
+loadstring(game:HttpGet("https://rawscripts.net/raw/Death-Penalty-Death-penalty-KEYLESS-43568"))()
+-- ========================================================
+-- 🔓 PURE FPS UNLOCKER (Always On | END to Unload)
+-- ========================================================
+
+local isUnlockerActive = true
+
+-- АВТОМАТИЧЕСКИЙ ЗАПУСК ПРИ ИНЖЕКТЕ
+local function startUnlocker()
+    if setfpscap then 
+        setfpscap(999) -- Снимаем лок кадров движка на максимум
+        print("🔓 FPS успешно разблокирован! Лимит установлен на 999.")
+    else
+        print("⚠ Твой экзекутор не поддерживает функцию setfpscap.")
+    end
+end
+
+-- ФУНКЦИЯ ПОЛНОГО АНЛОАДА (Возвращаем дефолтный лимит)
+local function unloadUnlocker()
+    if not isUnlockerActive then return end
+    isUnlockerActive = false
+    
+    if setfpscap then 
+        setfpscap(60) -- Возвращаем стандартное ограничение Roblox в 60 FPS
+    end
+    
+    print("💥 FPS Unlocker успешно выгружен. Вернут лимит 60 FPS.")
+end
+
+-- Привязка выгрузки софта на клавишу END
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.End then
+        unloadUnlocker()
+    end
+end)
+
+-- Моментальный старт при инжекте
+startUnlocker()
+--!strict
+-- FATALITY.WIN — ULTRA FPS BOOST & RENDERING OPTIMIZER
+-- Среда исполнения: Roblox Executor (Luau)
+-- Назначение: Отключение тяжелой графики для максимального FPS в HvH
+
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+-- 1. Срезаем качество текстур ландшафта (Terrain) под ноль
+if Terrain then
+    Terrain.WaterWaveSize = 0
+    Terrain.WaterWaveSpeed = 0
+    Terrain.WaterReflectance = 0
+    Terrain.WaterTransparency = 0
+end
+
+-- 2. Глушим тяжелые шейдеры и эффекты постобработки в Lighting
+Lighting.GlobalShadows = false -- Отключаем тени (главный пожиратель ФПС)
+Lighting.ShadowMapBlur = 0
+
+for _, effect in ipairs(Lighting:GetChildren()) do
+    if effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("DepthOfFieldEffect") then
+        pcall(function() effect.Enabled = false end)
+    end
+end
+
+-- 3. Глобальный агрессивный оптимизатор 3D объектов (Текстуры, Меши, Декалы)
+local function optimizeObject(object: Instance)
+    pcall(function()
+        -- Стираем тяжелые текстуры и заменяем материал на гладкий пластик
+        if object:IsA("BasePart") or object:IsA("MeshPart") or object:IsA("Part") then
+            object.Material = Enum.Material.SmoothPlastic
+            object.CastShadow = false
+            
+            -- Оставляем пушки (Tool) яркими, чтобы чамсы из 11Б работали сочно
+            if not object:IsDescendantOf(game:GetService("Players")) and not object:FindFirstAncestorOfClass("Tool") then
+                object.Reflectance = 0
+            end
+        
+        -- Вырезаем фантомные 2D декалы/рисунки на стенах карты
+        elseif object:IsA("Decal") or object:IsA("Texture") then
+            -- Проверяем, что это не текстура нашего Jump Circle из Части 10
+            if object.Name ~= "FatalityRotatedJumpCircle" and object.Parent and object.Parent.Name ~= "FatalityRotatedJumpCircle" then
+                object.Transparency = 1
+                object:Destroy()
+            end
+            
+        -- Оптимизируем сложные кастомные сетки мешей
+        elseif object:IsA("SpecialMesh") then
+            object.TextureId = ""
+            
+        -- Снижаем детализацию частиц (дым, огонь, искры)
+        elseif object:IsA("ParticleEmitter") or object:IsA("Trail") or object:IsA("Smoke") or object:IsA("Fire") then
+            object.Enabled = false
+        end
+    end)
+end
+
+-- Прогоняем всю текущую карту через оптимизатор
+for _, descendant in ipairs(workspace:GetDescendants()) do
+    optimizeObject(descendant)
+end
+
+-- Ставим триггер на новые объекты (чтобы новые выстрелы или спавны не грузили систему)
+local workspaceHook = workspace.DescendantAdded:Connect(optimizeObject)
+
+-- 4. Функция возврата настроек при выгрузке (для нашего UnloadPool)
+local function disableFpsBoost()
+    if workspaceHook then workspaceHook:Disconnect() end
+    Lighting.GlobalShadows = true
+    print("[Fatality Engine] ФПС-буст отключен, стандартная графика возвращена.")
+end
